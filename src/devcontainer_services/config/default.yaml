@@ -1,0 +1,49 @@
+# Default configuration for DevContainer Service Manager
+
+# Port allocation settings
+ports:
+  base_port: 8000
+  range_size: 100
+  max_port: 65000
+
+# Health monitoring settings  
+health_monitor:
+  check_interval: 30  # seconds
+  auto_repair: false
+  restart_threshold: 3  # attempts before giving up
+
+# Service management settings
+services:
+  startup_timeout: 120  # seconds
+  shutdown_timeout: 30   # seconds
+  restart_policy: "unless-stopped"
+  remove_on_stop: false  # keep containers for debugging
+
+# Namespace settings
+namespaces:
+  auto_cleanup: false    # automatically clean up unused namespaces
+  cleanup_threshold: 7   # days of inactivity before cleanup
+  max_namespaces: 50     # prevent runaway namespace creation
+
+# Docker settings
+docker:
+  network_driver: "bridge"
+  volume_driver: "local" 
+  label_prefix: "devcontainer-service-manager"
+
+# Template settings
+templates:
+  default_versions:
+    postgres: "16"
+    airflow: "2.9.3"
+    redis: "7-alpine"
+    mysql: "8.0"
+  custom_templates_dir: "~/.devcontainer-services/templates"
+
+# Logging settings
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "~/.devcontainer-services/dcm.log"
+  max_size: "10MB"
+  backup_count: 5

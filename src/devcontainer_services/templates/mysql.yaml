@@ -1,0 +1,46 @@
+image: "docker.io/library/mysql:{{version|default('8.0')}}"
+container_name: "{{namespace}}_mysql"
+
+environment:
+  MYSQL_ROOT_PASSWORD: "{{root_password|default('mysql')}}"
+  MYSQL_DATABASE: "{{database_name|default('devcontainer')}}"
+  MYSQL_USER: "{{username|default('mysql')}}"
+  MYSQL_PASSWORD: "{{password|default('mysql')}}"
+  MYSQL_AUTHENTICATION_PLUGIN: "mysql_native_password"
+
+ports:
+  "3306": "auto"
+
+volumes:
+  - "{{namespace}}_mysql_data:/var/lib/mysql"
+
+command: ["mysqld", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+
+healthcheck:
+  test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$MYSQL_ROOT_PASSWORD"]
+  interval: 10s
+  timeout: 5s
+  retries: 5
+  start_period: 30s
+
+labels:
+  devcontainer-service-manager.namespace: "{{namespace}}"
+  devcontainer-service-manager.service: "mysql"
+  devcontainer-service-manager.template: "mysql:{{version|default('8.0')}}" 
+  devcontainer-service-manager.project: "{{project}}"
+  devcontainer-service-manager.branch: "{{branch}}"
+
+restart: unless-stopped
+
+# Service-specific metadata
+metadata:
+  description: "MySQL relational database"
+  ports:
+    3306: "MySQL database connection"
+  volumes:
+    mysql_data: "MySQL data directory"
+  environment_variables:
+    MYSQL_ROOT_PASSWORD: "MySQL root password"
+    MYSQL_DATABASE: "Default database name"
+    MYSQL_USER: "Application database user"
+    MYSQL_PASSWORD: "Application database password"

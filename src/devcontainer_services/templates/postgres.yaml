@@ -1,0 +1,42 @@
+image: "docker.io/library/postgres:{{version}}"
+container_name: "{{namespace}}_postgres"
+
+environment:
+  POSTGRES_DB: "{{database_name|default('devcontainer')}}"
+  POSTGRES_USER: "{{username|default('postgres')}}"
+  POSTGRES_PASSWORD: "{{password|default('postgres')}}"
+  POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+
+ports:
+  "5432": "auto"  # Will be auto-allocated within namespace range
+
+volumes:
+  - "{{namespace}}_postgres_data:/var/lib/postgresql/data"
+
+healthcheck:
+  test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+  interval: 10s
+  timeout: 5s
+  retries: 5
+  start_period: 30s
+
+labels:
+  devcontainer-service-manager.namespace: "{{namespace}}"
+  devcontainer-service-manager.service: "postgres"
+  devcontainer-service-manager.template: "postgres:{{version}}"
+  devcontainer-service-manager.project: "{{project}}"
+  devcontainer-service-manager.branch: "{{branch}}"
+
+restart: unless-stopped
+
+# Service-specific metadata
+metadata:
+  description: "PostgreSQL database server"
+  ports:
+    5432: "PostgreSQL database connection"
+  volumes:
+    postgres_data: "PostgreSQL data directory"
+  environment_variables:
+    POSTGRES_DB: "Database name"
+    POSTGRES_USER: "Database username" 
+    POSTGRES_PASSWORD: "Database password"

@@ -1,0 +1,39 @@
+image: "docker.io/library/redis:{{version|default('7-alpine')}}"
+container_name: "{{namespace}}_redis"
+
+command: ["redis-server", "--appendonly", "yes", "--requirepass", "{{password|default('redis')}}"]
+
+environment:
+  REDIS_PASSWORD: "{{password|default('redis')}}"
+
+ports:
+  "6379": "auto"
+
+volumes:
+  - "{{namespace}}_redis_data:/data"
+
+healthcheck:
+  test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+  interval: 10s
+  timeout: 3s
+  retries: 5
+  start_period: 10s
+
+labels:
+  devcontainer-service-manager.namespace: "{{namespace}}"
+  devcontainer-service-manager.service: "redis" 
+  devcontainer-service-manager.template: "redis:{{version|default('7-alpine')}}"
+  devcontainer-service-manager.project: "{{project}}"
+  devcontainer-service-manager.branch: "{{branch}}"
+
+restart: unless-stopped
+
+# Service-specific metadata
+metadata:
+  description: "Redis in-memory data store"
+  ports:
+    6379: "Redis server connection"
+  volumes:
+    redis_data: "Redis persistent data"
+  environment_variables:
+    REDIS_PASSWORD: "Redis authentication password"
