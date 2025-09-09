@@ -206,15 +206,26 @@ class TestWSLConfigOptimization:
              patch('os.path.isdir') as mock_isdir, \
              patch('builtins.open', mock_open()) as mock_file:
             
-            mock_exists.return_value = True
+            # Mock exists: Users directory exists, .wslconfig doesn't exist initially but appears after write
+            mock_exists_calls = []
+            def mock_exists_side_effect(path):
+                mock_exists_calls.append(path)
+                if path == '/mnt/c/Users':
+                    return True
+                elif path == '/mnt/c/Users/testuser/.wslconfig':
+                    # Return True on second call (after file write) to simulate successful creation
+                    return len([p for p in mock_exists_calls if p == path]) > 1
+                return False
+            
+            mock_exists.side_effect = mock_exists_side_effect
             mock_listdir.return_value = ['testuser', 'Public']
             mock_isdir.return_value = True
             
             result = optimizer.apply_wsl_config_optimization(dry_run=False)
             
             assert result is True
-            # Verify file was opened for writing
-            mock_file.assert_called_once_with('/mnt/c/Users/testuser/.wslconfig', 'w')
+            # Verify file was opened for writing (no backup needed for fresh install)
+            mock_file.assert_called_with('/mnt/c/Users/testuser/.wslconfig', 'w')
     
     @patch('devcontainer_services.workstation.setup.WorkstationOptimizer._detect_system_info')
     def test_wsl_config_non_wsl_environment(self, mock_detect):
@@ -235,6 +246,23 @@ class TestWSLConfigOptimization:
         result = optimizer.apply_wsl_config_optimization(dry_run=True)
         
         assert result is True
+    
+    @patch('devcontainer_services.workstation.setup.WorkstationOptimizer._detect_system_info')
+    @patch('os.path.exists')
+    @patch('os.listdir')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_wsl_config_multiple_users_debug(self, mock_file, mock_listdir, mock_exists, mock_detect):
+        """Test WSL config optimization with multiple users (provides manual instructions)."""
+        mock_detect.return_value = {'is_wsl': True, 'wsl_version': '2', 'platform': 'Linux'}
+        mock_exists.return_value = True
+        mock_listdir.return_value = ['alice', 'bob', 'Public', 'Default']
+        
+        optimizer = WorkstationOptimizer(debug_mode=True)  # Enable debug mode
+        result = optimizer.apply_wsl_config_optimization(dry_run=False)
+        
+        assert result is True  # Should succeed but provide manual instructions
+        mock_listdir.assert_called_once_with('/mnt/c/Users')
+        mock_file.assert_not_called()  # Should not write file when multiple users
 
 
 class TestFilesystemMigrationOptimization:

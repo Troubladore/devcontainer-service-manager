@@ -934,27 +934,66 @@ systemd=true
             
             # Try to determine Windows username
             windows_user = None
+            self._debug_print(f"Checking for Windows Users directory at {windows_home}")
+            
             if os.path.exists(windows_home):
+                self._debug_print(f"Windows Users directory found, listing users...")
                 users = [d for d in os.listdir(windows_home) if os.path.isdir(os.path.join(windows_home, d))]
+                self._debug_print(f"Found directories: {users}")
+                
                 # Filter out system directories
                 users = [u for u in users if u not in ['Public', 'Default', 'Default User', 'All Users']]
+                self._debug_print(f"Filtered user directories: {users}")
+                
                 if len(users) == 1:
                     windows_user = users[0]
+                    self._debug_print(f"Single user detected: {windows_user}")
+                elif len(users) > 1:
+                    self._debug_print(f"Multiple users found ({users}), will provide manual instructions")
+            else:
+                self._debug_print(f"Windows Users directory not found at {windows_home}")
             
             if windows_user:
                 wslconfig_path = f"/mnt/c/Users/{windows_user}/.wslconfig"
                 logger.info(f"Creating .wslconfig at {wslconfig_path}")
                 
-                with open(wslconfig_path, "w") as f:
-                    f.write(wslconfig_content)
-                
-                logger.info("✅ .wslconfig created successfully")
-                logger.info("💡 Restart WSL to apply changes: wsl --shutdown (in Windows)")
-                return True
+                try:
+                    # Create backup if file exists
+                    if os.path.exists(wslconfig_path):
+                        backup_path = f"{wslconfig_path}.backup"
+                        self._debug_print(f"Backing up existing .wslconfig to {backup_path}")
+                        with open(wslconfig_path, "r") as src, open(backup_path, "w") as dst:
+                            dst.write(src.read())
+                    
+                    with open(wslconfig_path, "w") as f:
+                        f.write(wslconfig_content)
+                    
+                    # Verify file was created
+                    if os.path.exists(wslconfig_path):
+                        logger.info("✅ .wslconfig created successfully")
+                        logger.info("💡 Restart WSL to apply changes: wsl --shutdown (in Windows)")
+                        return True
+                    else:
+                        logger.error("❌ .wslconfig file was not created successfully")
+                        return False
+                        
+                except PermissionError:
+                    logger.error("❌ Permission denied when creating .wslconfig file")
+                    logger.info("💡 Try running with elevated permissions or create manually")
+                    return False
+                except Exception as write_error:
+                    logger.error(f"❌ Failed to write .wslconfig file: {write_error}")
+                    return False
             else:
                 # Provide instructions for manual creation
-                logger.info("💡 Please create C:\\Users\\<username>\\.wslconfig with the following content:")
-                logger.info(wslconfig_content)
+                logger.info("💡 Could not automatically create .wslconfig file.")
+                if os.path.exists(windows_home):
+                    logger.info("💡 Multiple users detected or unable to determine Windows username.")
+                else:
+                    logger.info("💡 Windows Users directory not accessible from WSL.")
+                logger.info("💡 Please create C:\\Users\\<your-username>\\.wslconfig with the following content:")
+                for line in wslconfig_content.strip().split('\n'):
+                    logger.info(f"   {line}")
                 return True
                 
         except Exception as e:
