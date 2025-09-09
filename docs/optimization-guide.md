@@ -8,6 +8,32 @@ The DevContainer Service Manager can detect and recommend various workstation op
 
 **Performance Impact**: These optimizations can provide 10x-149x performance improvements depending on your current setup and bottlenecks.
 
+## Quick Reference Index
+
+Jump directly to optimizations mentioned in `dcm-setup validate` output:
+
+### 🚀 Easy Button Commands
+- **Apply all optimizations**: `dcm-setup optimize --all`
+- **Individual optimizations**: `dcm-setup optimize --docker-buildkit`, `--wsl-config`, `--filesystem`, `--disk-cleanup`
+- **Preview changes**: Add `--dry-run` to any optimize command
+
+### 📖 Docker Validation Issues
+- **Enable Docker BuildKit for faster builds (149x improvement with DCM caching)** → [Docker BuildKit](#docker-buildkit)
+- **Increase Docker memory allocation (currently X GB, recommend 8GB+)** → [Docker Memory](#docker-memory-allocation)
+- **Optimize Docker storage driver (currently X, recommend overlay2)** → [Storage Driver](#docker-storage-driver)
+
+### 📖 WSL2 Validation Issues
+- **Create .wslconfig for WSL2 optimization (memory, CPU tuning)** → [WSL2 Configuration](#wsl2-configuration-wslconfig)
+- **Upgrade to WSL2 for better performance** → [WSL2 Version](#wsl2-version-upgrade)
+
+### 📖 Filesystem Performance Issues
+- **Move repositories to WSL2 filesystem for 10x faster builds** → [WSL2 Filesystem Performance](#wsl2-filesystem-performance)
+- **Working in Windows filesystem (/mnt/c/) detected** → [WSL2 Filesystem Performance](#wsl2-filesystem-performance)
+
+### 📖 System Resource Issues
+- **Free up disk space (X available, recommend 50GB+)** → [Disk Cleanup](#disk-space-management)
+- **Low disk space detected** → [Disk Cleanup](#disk-space-management)
+
 ---
 
 ## Docker Optimizations
