@@ -197,58 +197,79 @@ dcm-cache status
 dcm-cache registry stop && dcm-cache registry start
 ```
 
-## 🗑️ Complete Uninstall
+## 🔄 Updating DCM
 
-For testing, development, or when switching to a new version, you may need to completely remove DCM from your system.
+### Recommended: Update in Place
 
-### Comprehensive Uninstall Process
+For most cases, you can update DCM without a full uninstall:
 
 ```bash
-# 1. Stop all running DCM services
-dcm clean --force
+# Update to latest version (preserves configuration)
+pipx upgrade devcontainer-service-manager[workstation]
 
-# 2. Stop and remove cache registry
-dcm-cache registry stop
-docker stop dcm-cache-registry 2>/dev/null || true
-docker rm dcm-cache-registry 2>/dev/null || true
+# OR if that fails, reinstall over existing
+pipx install --force devcontainer-service-manager[workstation]
 
-# 3. Clean up all DCM Docker resources
-docker ps -aq --filter "label=devcontainer-service-manager" | xargs -r docker stop
-docker ps -aq --filter "label=devcontainer-service-manager" | xargs -r docker rm -f
-docker images -q --filter "label=devcontainer-service-manager" | xargs -r docker rmi -f
-docker volume ls -q --filter "label=devcontainer-service-manager" | xargs -r docker volume rm
-docker network ls -q --filter "label=devcontainer-service-manager" | xargs -r docker network rm
-
-# 4. Clean up cache registry volumes and images
-docker volume rm dcm-cache-registry-data 2>/dev/null || true
-docker images -q --filter "reference=registry:*" | xargs -r docker rmi -f 2>/dev/null || true
-
-# 5. Clean up configuration directories
-rm -rf ~/.devcontainer-services
-rm -rf ~/.config/devcontainer-service-manager
-rm -rf ~/.cache/devcontainer-service-manager
-
-# 6. Uninstall DCM packages
-pipx uninstall devcontainer-service-manager
-# OR if installed via uv: uv pip uninstall devcontainer-service-manager --system
-# OR if installed via pip: pip uninstall devcontainer-service-manager -y
-
-# 7. Clean up shell configuration (optional)
-# Remove DCM-related aliases and environment variables from ~/.bashrc or ~/.zshrc
-
-# 8. Verify complete removal
-docker ps -a --filter "label=devcontainer-service-manager"  # Should show no containers
-docker images --filter "label=devcontainer-service-manager"  # Should show no images
-which dcm dcm-setup dcm-cache  # Should show "not found"
+# Verify new version
+dcm --version
+dcm-setup validate
 ```
 
-### Quick Uninstall Script
+### State-Safe Updates
 
-For convenience, you can use this one-liner to perform most cleanup steps:
+DCM is designed to handle version updates gracefully:
+- **Configuration**: Preserved across updates in `~/.devcontainer-services/`
+- **Running Services**: Continue running during updates
+- **Cache Registry**: Persists with existing cached images
+- **Backward Compatibility**: Newer versions handle older state gracefully
+
+## 🗑️ Complete Uninstall
+
+For testing, development, or when you need to completely remove DCM from your system (including when DCM commands are broken or unavailable).
+
+### 🚀 Recommended: Standalone Uninstall Script
+
+**Problem**: Manual uninstall steps require DCM commands to be working, but you might need to uninstall DCM precisely because it's broken!
+
+**Solution**: Use our standalone uninstall script that works independently of DCM installation status:
 
 ```bash
-# Complete DCM uninstall (use with caution)
-dcm clean --force 2>/dev/null; dcm-cache registry stop 2>/dev/null; docker stop dcm-cache-registry 2>/dev/null; docker rm dcm-cache-registry 2>/dev/null; docker ps -aq --filter "label=devcontainer-service-manager" | xargs -r docker rm -f; docker images -q --filter "label=devcontainer-service-manager" | xargs -r docker rmi -f; docker volume ls -q --filter "label=devcontainer-service-manager" | xargs -r docker volume rm; docker volume rm dcm-cache-registry-data 2>/dev/null; rm -rf ~/.devcontainer-services ~/.config/devcontainer-service-manager ~/.cache/devcontainer-service-manager; pipx uninstall devcontainer-service-manager 2>/dev/null || pip uninstall devcontainer-service-manager -y 2>/dev/null || echo "Package removal may need manual intervention"
+# Option 1: Download and run directly from repository
+curl -fsSL https://raw.githubusercontent.com/Troubladore/devcontainer-service-manager/remove_podman/uninstall-dcm.sh | bash
+
+# Option 2: Download, inspect, then run
+curl -fsSL https://raw.githubusercontent.com/Troubladore/devcontainer-service-manager/remove_podman/uninstall-dcm.sh -o uninstall-dcm.sh
+chmod +x uninstall-dcm.sh
+./uninstall-dcm.sh
+
+# Option 3: Force mode (no prompts)
+curl -fsSL https://raw.githubusercontent.com/Troubladore/devcontainer-service-manager/remove_podman/uninstall-dcm.sh | bash -s -- --force
+```
+
+**Key advantages:**
+- ✅ **Works without DCM**: Doesn't require `dcm` commands to be functional
+- ✅ **Version independent**: Handles state from any DCM version (current, old, or broken)
+- ✅ **Comprehensive**: 8-step process covers all possible DCM remnants
+- ✅ **Safe**: Shows what will be removed and asks for confirmation
+- ✅ **Validates**: Confirms complete removal at the end
+
+### Manual Uninstall (Fallback)
+
+If the script doesn't work for your setup, manual steps:
+
+```bash
+# 1. Force stop/remove all DCM Docker resources
+docker ps -aq --filter "label=devcontainer-service-manager" | xargs -r docker rm -f
+docker images -q --filter "label=devcontainer-service-manager" | xargs -r docker rmi -f  
+docker volume ls -q --filter "label=devcontainer-service-manager" | xargs -r docker volume rm
+docker stop dcm-cache-registry && docker rm dcm-cache-registry
+docker volume rm dcm-cache-registry-data
+
+# 2. Remove configuration
+rm -rf ~/.devcontainer-services ~/.config/devcontainer-service-manager ~/.cache/devcontainer-service-manager
+
+# 3. Uninstall package
+pipx uninstall devcontainer-service-manager
 ```
 
 ### Validation After Uninstall
