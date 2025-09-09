@@ -166,7 +166,9 @@ class TestWorkstationOptimizerDebugMode:
             
             with patch('builtins.print') as mock_print:
                 optimizer._debug_print("Test message")
-                mock_print.assert_called_once_with("DEBUG: Test message")
+                # Should call print with instance ID format
+                expected_call = f"DEBUG[#{optimizer.instance_id}]: Test message"
+                mock_print.assert_called_with(expected_call)
     
     def test_debug_print_with_debug_disabled(self):
         """Test _debug_print method when debug mode is disabled."""
@@ -199,7 +201,7 @@ class TestWSL2DebugDetection:
                 
                 assert result is False
                 # Should have printed debug messages for each method
-                debug_calls = [call for call in mock_print.call_args_list if 'DEBUG:' in str(call)]
+                debug_calls = [call for call in mock_print.call_args_list if 'DEBUG[#' in str(call)]
                 assert len(debug_calls) > 6  # Should be more than 6 debug calls (start + 6 methods + end)
                 
                 # Check for specific debug messages

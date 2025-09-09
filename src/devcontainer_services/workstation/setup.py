@@ -19,8 +19,19 @@ logger = logging.getLogger(__name__)
 class WorkstationOptimizer:
     """Optimizes development workstation for data engineering workflows."""
     
+    _instance_count = 0
+    
     def __init__(self, debug_mode=False):
+        WorkstationOptimizer._instance_count += 1
+        self.instance_id = WorkstationOptimizer._instance_count
         self.debug_mode = debug_mode
+        self._wsl_detection_result = None  # Cache WSL detection to avoid duplicate debug output
+        if debug_mode:
+            import traceback
+            print(f"DEBUG: WorkstationOptimizer instance #{self.instance_id} created with debug_mode=True")
+            print("DEBUG: Call stack:")
+            for line in traceback.format_stack()[-3:]:
+                print(f"DEBUG:   {line.strip()}")
         self.system_info = self._detect_system_info()
         
     def _detect_system_info(self) -> Dict[str, str]:
@@ -42,11 +53,18 @@ class WorkstationOptimizer:
     def _debug_print(self, message):
         """Print debug message if debug mode is enabled."""
         if self.debug_mode:
-            print(f"DEBUG: {message}")
-        logger.debug(message)
+            instance_id = getattr(self, 'instance_id', '?')
+            print(f"DEBUG[#{instance_id}]: {message}")
+        else:
+            logger.debug(message)
 
     def _is_wsl(self) -> bool:
         """Check if running in WSL environment using multiple detection methods."""
+        # Return cached result if available to avoid duplicate debug output
+        if self._wsl_detection_result is not None:
+            self._debug_print(f"🎯 Using cached WSL detection result: {self._wsl_detection_result}")
+            return self._wsl_detection_result
+            
         import os
         
         self._debug_print("🔍 Starting WSL2 detection using 6 different methods...")
@@ -59,6 +77,7 @@ class WorkstationOptimizer:
                 self._debug_print(f"  /proc/version content: {content.strip()}")
                 if 'microsoft' in content or 'wsl' in content:
                     self._debug_print("✅ WSL detected via /proc/version - found Microsoft/WSL indicators")
+                    self._wsl_detection_result = True
                     return True
                 else:
                     self._debug_print("❌ Method 1 failed: No Microsoft/WSL indicators in /proc/version")
@@ -73,6 +92,7 @@ class WorkstationOptimizer:
         self._debug_print(f"  WSL_INTEROP: {wsl_interop}")
         if wsl_distro or wsl_interop:
             self._debug_print("✅ WSL detected via environment variables")
+            self._wsl_detection_result = True
             return True
         else:
             self._debug_print("❌ Method 2 failed: WSL environment variables not found")
@@ -85,6 +105,7 @@ class WorkstationOptimizer:
                 self._debug_print(f"  kernel osrelease: {content.strip()}")
                 if 'microsoft' in content or 'wsl' in content:
                     self._debug_print("✅ WSL detected via kernel osrelease")
+                    self._wsl_detection_result = True
                     return True
                 else:
                     self._debug_print("❌ Method 3 failed: No Microsoft/WSL in kernel osrelease")
@@ -100,6 +121,7 @@ class WorkstationOptimizer:
                 self._debug_print(f"  mount output (first 500 chars): {mount_output[:500]}")
                 if '/mnt/c' in mount_output or '/mnt/wsl' in mount_output:
                     self._debug_print("✅ WSL detected via mount points - found /mnt/c or /mnt/wsl")
+                    self._wsl_detection_result = True
                     return True
                 else:
                     self._debug_print("❌ Method 4 failed: No /mnt/c or /mnt/wsl in mount output")
@@ -115,6 +137,7 @@ class WorkstationOptimizer:
             self._debug_print(f"  which wsl.exe result: returncode={result.returncode}, stdout='{result.stdout.strip()}', stderr='{result.stderr.strip()}'")
             if result.returncode == 0:
                 self._debug_print("✅ WSL detected via wsl.exe availability")
+                self._wsl_detection_result = True
                 return True
             else:
                 self._debug_print("❌ Method 5 failed: wsl.exe not found in PATH")
@@ -131,6 +154,7 @@ class WorkstationOptimizer:
             self._debug_print(f"  /mnt/d exists: {mnt_d_exists}")
             if mnt_c_exists or mnt_d_exists:
                 self._debug_print("✅ WSL detected via Windows mount directories")
+                self._wsl_detection_result = True
                 return True
             else:
                 self._debug_print("❌ Method 6 failed: No Windows mount directories found")
@@ -139,23 +163,88 @@ class WorkstationOptimizer:
         
         self._debug_print("🚫 WSL NOT DETECTED: All 6 detection methods failed")
         logger.info("WSL2 detection failed - run with --debug flag for detailed method analysis")
+        
+        # Cache the result
+        self._wsl_detection_result = False
         return False
     
     def _get_wsl_version(self) -> str:
-        """Get WSL version."""
+        """Get WSL version using multiple detection methods."""
+        self._debug_print("🔍 Determining WSL version using multiple methods...")
+        
+        # Method 1: Check /proc/version for WSL2-specific indicators
+        self._debug_print("WSL Version Method 1: Checking /proc/version for version-specific indicators")
+        try:
+            with open('/proc/version', 'r') as f:
+                content = f.read().lower()
+                self._debug_print(f"  /proc/version content: {content.strip()}")
+                if 'microsoft-standard-wsl2' in content or '-wsl2' in content:
+                    self._debug_print("✅ WSL2 detected via /proc/version - found WSL2-specific indicators")
+                    return "2"
+                elif 'microsoft' in content and 'wsl' in content:
+                    self._debug_print("⚠️ WSL detected but could be WSL1 - /proc/version shows generic Microsoft/WSL")
+                    # Continue to other methods
+                else:
+                    self._debug_print("❌ WSL Version Method 1 failed: No Microsoft/WSL in /proc/version")
+        except Exception as e:
+            self._debug_print(f"❌ WSL Version Method 1 failed: Cannot read /proc/version - {e}")
+        
+        # Method 2: Check for WSL2-specific filesystem features
+        self._debug_print("WSL Version Method 2: Checking for WSL2-specific filesystem features")
+        try:
+            import os
+            # WSL2 typically has different filesystem layout
+            if os.path.exists('/sys/fs/cgroup/memory/memory.limit_in_bytes'):
+                self._debug_print("✅ WSL2 likely detected - found WSL2-style cgroup filesystem")
+                return "2"
+            else:
+                self._debug_print("❌ WSL Version Method 2 failed: WSL2-style filesystem not found")
+        except Exception as e:
+            self._debug_print(f"❌ WSL Version Method 2 failed: {e}")
+        
+        # Method 3: Try wsl.exe --status (original method)
+        self._debug_print("WSL Version Method 3: Trying wsl.exe --status command")
         try:
             result = subprocess.run([
                 'wsl.exe', '--status'
             ], capture_output=True, text=True, timeout=10)
             
+            self._debug_print(f"  wsl.exe --status output: {result.stdout.strip()}")
             if 'WSL 2' in result.stdout:
+                self._debug_print("✅ WSL2 detected via wsl.exe --status")
                 return "2"
             elif 'WSL 1' in result.stdout:
+                self._debug_print("✅ WSL1 detected via wsl.exe --status") 
                 return "1"
             else:
-                return "unknown"
-        except:
-            return "unknown"
+                self._debug_print("❌ WSL Version Method 3 failed: Cannot determine version from wsl.exe output")
+        except Exception as e:
+            self._debug_print(f"❌ WSL Version Method 3 failed: Cannot run wsl.exe - {e}")
+        
+        # Method 4: Check kernel version patterns
+        self._debug_print("WSL Version Method 4: Analyzing kernel version patterns")
+        try:
+            with open('/proc/version', 'r') as f:
+                content = f.read().lower()
+                # WSL2 typically has newer kernel versions and different patterns
+                if 'microsoft' in content:
+                    import re
+                    # Look for version patterns that indicate WSL2 (typically 4.x+ kernels)
+                    kernel_match = re.search(r'linux version (\d+)\.(\d+)', content)
+                    if kernel_match:
+                        major, minor = int(kernel_match.group(1)), int(kernel_match.group(2))
+                        self._debug_print(f"  Detected kernel version: {major}.{minor}")
+                        if major >= 4:  # WSL2 typically uses 4.x+ kernels
+                            self._debug_print("✅ WSL2 likely detected - kernel version suggests WSL2")
+                            return "2"
+                        else:
+                            self._debug_print("⚠️ WSL1 likely detected - older kernel version suggests WSL1")
+                            return "1"
+        except Exception as e:
+            self._debug_print(f"❌ WSL Version Method 4 failed: {e}")
+        
+        self._debug_print("🚫 WSL VERSION UNKNOWN: All 4 version detection methods failed")
+        return "unknown"
     
     def _get_windows_build(self) -> str:
         """Get Windows build number from WSL."""
