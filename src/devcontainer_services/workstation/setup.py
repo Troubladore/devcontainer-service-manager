@@ -328,18 +328,40 @@ class WorkstationOptimizer:
         
         # Check BuildKit support
         if not docker_info.get("BuilderVersion", "").startswith("buildx"):
-            validation["recommendations"].append("Enable BuildKit for faster builds (DOCKER_BUILDKIT=1)")
+            buildkit_instructions = (
+                "Enable Docker BuildKit for faster builds:\n"
+                "  1. Add to shell profile: echo 'export DOCKER_BUILDKIT=1' >> ~/.bashrc\n"
+                "  2. Reload shell: source ~/.bashrc\n"
+                "  3. Verify setting: echo $DOCKER_BUILDKIT\n"
+                "  4. Alternative: Run export DOCKER_BUILDKIT=1 before each docker build"
+            )
+            validation["recommendations"].append(buildkit_instructions)
         
         # Check memory allocation (for Docker Desktop)
         if "MemTotal" in docker_info:
             mem_gb = docker_info["MemTotal"] / (1024**3)
             if mem_gb < 6:
-                validation["recommendations"].append(f"Consider increasing Docker memory to 8GB+ (currently {mem_gb:.1f}GB)")
+                memory_instructions = (
+                    f"Increase Docker memory allocation (currently {mem_gb:.1f}GB, recommend 8GB+):\n"
+                    "  Docker Desktop: Settings → Resources → Memory → Set to 8GB\n"
+                    "  Docker Machine: docker-machine stop → VirtualBox settings → System → 8GB\n"
+                    "  Linux: Edit /etc/docker/daemon.json: {\"default-runtime\": \"runc\"}\n"
+                    "  Then: sudo systemctl restart docker"
+                )
+                validation["recommendations"].append(memory_instructions)
         
         # Check storage driver
         storage_driver = docker_info.get("Driver", "unknown")
         if storage_driver not in ["overlay2", "btrfs"]:
-            validation["recommendations"].append(f"Consider using overlay2 storage driver (currently {storage_driver})")
+            storage_instructions = (
+                f"Optimize Docker storage driver (currently {storage_driver}, recommend overlay2):\n"
+                "  1. Edit /etc/docker/daemon.json:\n"
+                '     {\"storage-driver\": \"overlay2\"}\n'
+                "  2. Restart Docker: sudo systemctl restart docker\n"
+                "  3. Verify: docker info | grep 'Storage Driver'\n"
+                "  Note: This will remove existing containers and images"
+            )
+            validation["recommendations"].append(storage_instructions)
         
         return validation
     
@@ -353,13 +375,31 @@ class WorkstationOptimizer:
         
         if validation["version"] != "2":
             validation["issues"].append(f"WSL version is {validation['version']}, but WSL 2 recommended")
-            validation["recommendations"].append("Upgrade to WSL 2 for better Docker performance")
+            wsl2_upgrade_instructions = (
+                "Upgrade to WSL 2 for better Docker performance:\n"
+                "  1. Open PowerShell as Administrator\n"
+                "  2. Enable WSL 2: dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\n"
+                "  3. Download WSL2 kernel: https://aka.ms/wsl2kernel\n"
+                "  4. Set WSL 2 as default: wsl --set-default-version 2\n"
+                "  5. Convert existing distro: wsl --set-version <distro-name> 2\n"
+                "  6. Verify: wsl --list --verbose"
+            )
+            validation["recommendations"].append(wsl2_upgrade_instructions)
         
         # Check file system location
         cwd = Path.cwd()
         if str(cwd).startswith("/mnt/"):
             validation["issues"].append("Working in Windows filesystem (/mnt/c/)")
-            validation["recommendations"].append("Move repositories to WSL2 filesystem (e.g., ~/repos/) for 10x faster builds")
+            filesystem_migration_instructions = (
+                "Move repositories to WSL2 filesystem for 10x faster builds:\n"
+                "  1. Create repos directory: mkdir -p ~/repos\n"
+                "  2. Navigate to new location: cd ~/repos\n"
+                "  3. Clone repositories: git clone <your-repo-url>\n"
+                "  4. Or move existing: cp -r /mnt/c/path/to/repo ~/repos/\n"
+                "  5. Update IDE workspace to ~/repos/ path\n"
+                "  6. Verify performance: time ls -la (should be much faster)"
+            )
+            validation["recommendations"].append(filesystem_migration_instructions)
         
         # Check .wslconfig
         wslconfig_path = Path.home() / ".wslconfig"
@@ -370,7 +410,19 @@ class WorkstationOptimizer:
                 if windows_home.exists():
                     possible_configs = list(windows_home.glob("*/.wslconfig"))
                     if not possible_configs:
-                        validation["recommendations"].append("Consider creating .wslconfig for WSL2 optimization")
+                        wslconfig_instructions = (
+                            "Create .wslconfig for WSL2 optimization:\n"
+                            "  1. Open Windows PowerShell\n"
+                            "  2. Create file: notepad $env:USERPROFILE\\.wslconfig\n"
+                            "  3. Add configuration:\n"
+                            "     [wsl2]\n"
+                            "     memory=8GB\n"
+                            "     processors=4\n" 
+                            "     swap=0\n"
+                            "     localhostForwarding=true\n"
+                            "  4. Save and restart WSL: wsl --shutdown"
+                        )
+                        validation["recommendations"].append(wslconfig_instructions)
             except:
                 pass
         
@@ -390,7 +442,16 @@ class WorkstationOptimizer:
         if str(cwd).startswith("/mnt/"):
             validation["performance_tier"] = "slow"
             validation["issues"].append("Working in cross-filesystem mount (Windows to WSL)")
-            validation["recommendations"].append("Move to native WSL2 filesystem for 10x faster I/O")
+            filesystem_native_instructions = (
+                "Move to native WSL2 filesystem for 10x faster I/O:\n"
+                "  1. Create workspace in WSL: mkdir -p ~/workspace\n"
+                "  2. Copy project: cp -r /mnt/c/your-project ~/workspace/\n"
+                "  3. Or clone fresh: cd ~/workspace && git clone <repo-url>\n"
+                "  4. Update VSCode workspace: File → Open Folder → ~/workspace/project\n"
+                "  5. Verify: pwd should show /home/username/workspace\n"
+                "  6. Performance test: time find . -name '*.js' (should be much faster)"
+            )
+            validation["recommendations"].append(filesystem_native_instructions)
         elif self.system_info["is_wsl"]:
             validation["performance_tier"] = "fast"
         else:
@@ -424,7 +485,16 @@ class WorkstationOptimizer:
                             gb_available = float(available[:-1])
                             if gb_available < 20:
                                 validation["issues"].append(f"Low disk space: {available} available")
-                                validation["recommendations"].append("Free up disk space for Docker images and builds")
+                                disk_cleanup_instructions = (
+                                    f"Free up disk space ({available} available, recommend 50GB+):\n"
+                                    "  1. Clean Docker: docker system prune -a --volumes\n"
+                                    "  2. Clean package cache: sudo apt autoremove && sudo apt autoclean\n"
+                                    "  3. Find large files: sudo du -h / | sort -hr | head -20\n"
+                                    "  4. Clean logs: sudo journalctl --vacuum-time=3d\n"
+                                    "  5. Empty trash: rm -rf ~/.local/share/Trash/*\n"
+                                    "  6. Check again: df -h /"
+                                )
+                                validation["recommendations"].append(disk_cleanup_instructions)
         except:
             pass
         
