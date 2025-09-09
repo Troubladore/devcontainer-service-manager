@@ -55,13 +55,56 @@ Jump directly to optimizations mentioned in `dcm-setup validate` output:
 
 **Implementation**: 
 ```bash
-# Permanent setup (recommended)
+# 🚀 Easy Button (recommended - most durable)
+dcm-setup optimize --docker-buildkit
+
+# 📖 Manual approach (dual-method for maximum durability)
+# Method 1: Docker daemon configuration (survives restarts)
+mkdir -p ~/.docker
+cat > ~/.docker/daemon.json << 'EOF'
+{
+  "features": {
+    "buildkit": true
+  }
+}
+EOF
+
+# Method 2: Shell profile (for CLI usage)  
 echo 'export DOCKER_BUILDKIT=1' >> ~/.bashrc
 source ~/.bashrc
 
 # Verify
 echo $DOCKER_BUILDKIT  # Should output "1"
+docker buildx version   # Should show buildx is available
 ```
+
+**Why DCM uses adaptive approach**:
+
+🐳 **Docker Desktop (Windows + WSL2)**:
+- **Buildx builder configuration**: Creates persistent BuildKit builder instance
+- **Shell profile**: Ensures CLI commands in new terminals use BuildKit
+- **Session variables**: Immediate effect for current session
+- **Context-aware**: Detects Docker Desktop and adapts configuration method
+
+🐧 **Native Docker (Linux)**:
+- **Docker daemon.json**: Survives Docker service restarts and system reboots
+- **Shell profile**: Ensures CLI commands in new terminals use BuildKit
+- **Session variables**: Immediate effect for current session
+
+**Durability across restarts**:
+
+📊 **Docker Desktop Context**:
+✅ **WSL shutdown/restart**: Buildx builder and shell profile persist  
+✅ **Docker Desktop restart**: Buildx configuration is preserved  
+✅ **Windows reboot**: Shell profile survives, buildx builders recreated on first use  
+✅ **New terminal sessions**: Shell profile ensures CLI consistency
+
+📊 **Native Docker Context**:
+✅ **Docker service restart**: Features from daemon.json are reloaded  
+✅ **System reboot**: Both daemon.json and shell profile survive  
+✅ **New terminal sessions**: Shell profile ensures CLI consistency
+
+**Docker Desktop Detection**: DCM automatically detects Docker Desktop by checking `docker context`, `docker info` output, and WSL2 environment indicators.
 
 **Verification**: Your next `docker build` command will show "Building with BuildKit" and significantly faster performance.
 

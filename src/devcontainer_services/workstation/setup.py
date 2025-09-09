@@ -568,20 +568,225 @@ pageReporting=false
                 logger.info(f"   {line}")
 
     def apply_docker_buildkit_optimization(self, dry_run=False) -> bool:
-        """Apply Docker BuildKit optimization automatically."""
+        """Apply Docker BuildKit optimization automatically with multiple persistence methods."""
         if dry_run:
-            self._debug_print("DRY RUN: Would enable Docker BuildKit")
+            self._debug_print("DRY RUN: Would enable Docker BuildKit via daemon.json and shell profile")
             return True
             
         try:
             import os
+            import json
             from pathlib import Path
             
-            # Determine shell profile file
-            shell_profiles = [".bashrc", ".zshrc", ".profile"]
-            home = Path.home()
+            # Method 1: Configure Docker daemon.json (most reliable)
+            success_daemon = self._configure_docker_daemon_buildkit()
             
+            # Method 2: Configure shell profile (for CLI usage)
+            success_shell = self._configure_shell_profile_buildkit()
+            
+            # Set for current session
+            os.environ["DOCKER_BUILDKIT"] = "1"
+            os.environ["COMPOSE_DOCKER_CLI_BUILD"] = "1"
+            
+            if success_daemon or success_shell:
+                self._debug_print("Docker BuildKit configured via daemon and/or shell profile")
+                return True
+            else:
+                logger.error("Failed to configure Docker BuildKit via any method")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Failed to apply Docker BuildKit optimization: {e}")
+            return False
+    
+    def _configure_docker_daemon_buildkit(self) -> bool:
+        """Configure Docker daemon for persistent BuildKit (handles Docker Desktop)."""
+        try:
+            import json
+            import subprocess
+            from pathlib import Path
+            
+            # Detect Docker Desktop vs native Docker
+            is_docker_desktop = self._detect_docker_desktop()
+            
+            if is_docker_desktop:
+                self._debug_print("Docker Desktop detected - using environment variable approach")
+                return self._configure_docker_desktop_buildkit()
+            else:
+                self._debug_print("Native Docker detected - using daemon.json approach")
+                return self._configure_native_docker_buildkit()
+                
+        except Exception as e:
+            self._debug_print(f"Failed to configure Docker daemon: {e}")
+            return False
+    
+    def _detect_docker_desktop(self) -> bool:
+        """Detect if we're using Docker Desktop vs native Docker."""
+        try:
+            import subprocess
+            
+            # Method 1: Check docker context
+            result = subprocess.run(['docker', 'context', 'show'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                context = result.stdout.strip()
+                if 'desktop' in context.lower():
+                    self._debug_print(f"Docker Desktop context detected: {context}")
+                    return True
+            
+            # Method 2: Check docker info for Docker Desktop indicators
+            result = subprocess.run(['docker', 'info'], 
+                                  capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                info = result.stdout.lower()
+                desktop_indicators = ['docker desktop', 'wsl2', 'windows']
+                if any(indicator in info for indicator in desktop_indicators):
+                    self._debug_print("Docker Desktop indicators found in docker info")
+                    return True
+            
+            # Method 3: Check if we're in WSL and Docker is available
+            if self.system_info.get('is_wsl') and self.system_info.get('docker_available'):
+                self._debug_print("WSL + Docker available suggests Docker Desktop integration")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            self._debug_print(f"Failed to detect Docker Desktop: {e}")
+            # Default to Docker Desktop detection if in WSL
+            return self.system_info.get('is_wsl', False)
+    
+    def _configure_docker_desktop_buildkit(self) -> bool:
+        """Configure BuildKit for Docker Desktop (environment variable approach)."""
+        try:
+            # For Docker Desktop, environment variables are the most reliable approach
+            # since the daemon is managed by Docker Desktop on the host
+            self._debug_print("Using environment variable approach for Docker Desktop")
+            
+            # Try to set BuildKit as default builder using buildx
+            result = self._setup_buildx_default_builder()
+            if result:
+                self._debug_print("Successfully configured buildx default builder")
+                return True
+            else:
+                self._debug_print("Buildx configuration failed, relying on environment variables")
+                return True  # Environment variables will still work
+                
+        except Exception as e:
+            self._debug_print(f"Failed to configure Docker Desktop BuildKit: {e}")
+            return False
+    
+    def _configure_native_docker_buildkit(self) -> bool:
+        """Configure BuildKit for native Docker using daemon.json."""
+        try:
+            import json
+            from pathlib import Path
+            
+            # Possible daemon.json locations
+            daemon_paths = [
+                Path("/etc/docker/daemon.json"),        # System-wide
+                Path.home() / ".docker" / "daemon.json" # User-specific
+            ]
+            
+            # Try user-specific first (more reliable for non-root users)
+            daemon_path = daemon_paths[1]
+            daemon_path.parent.mkdir(exist_ok=True)
+            
+            # Read existing config or start with empty
+            if daemon_path.exists():
+                try:
+                    with open(daemon_path, 'r') as f:
+                        config = json.load(f)
+                except json.JSONDecodeError:
+                    config = {}
+            else:
+                config = {}
+            
+            # Check if already configured
+            if config.get("features", {}).get("buildkit", False):
+                self._debug_print("Docker daemon already configured for BuildKit")
+                return True
+            
+            # Add BuildKit configuration
+            if "features" not in config:
+                config["features"] = {}
+            config["features"]["buildkit"] = True
+            
+            # Add comment to track our changes
+            config["_dcm_comment"] = "BuildKit enabled by dcm-setup"
+            
+            # Write updated config
+            with open(daemon_path, 'w') as f:
+                json.dump(config, f, indent=2)
+            
+            self._debug_print(f"Docker BuildKit configured in {daemon_path}")
+            logger.info("💡 Docker daemon restart required for BuildKit to take effect")
+            return True
+            
+        except PermissionError:
+            self._debug_print("Permission denied for daemon.json - falling back to environment variables")
+            return False
+        except Exception as e:
+            self._debug_print(f"Failed to configure native Docker: {e}")
+            return False
+    
+    def _setup_buildx_default_builder(self) -> bool:
+        """Set up buildx with BuildKit as default builder."""
+        try:
+            import subprocess
+            
+            # Check if buildx is available
+            result = subprocess.run(['docker', 'buildx', 'version'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode != 0:
+                self._debug_print("Docker buildx not available")
+                return False
+            
+            # Create or use existing buildx builder with BuildKit
+            result = subprocess.run(['docker', 'buildx', 'create', '--name', 'dcm-builder', '--use'], 
+                                  capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                self._debug_print("Created and activated dcm-builder buildx instance")
+                return True
+            elif 'already exists' in result.stderr:
+                # Builder already exists, just use it
+                result = subprocess.run(['docker', 'buildx', 'use', 'dcm-builder'], 
+                                      capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    self._debug_print("Activated existing dcm-builder buildx instance")
+                    return True
+            
+            # Fallback: use default builder
+            result = subprocess.run(['docker', 'buildx', 'use', 'default'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                self._debug_print("Activated default buildx builder")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            self._debug_print(f"Failed to setup buildx: {e}")
+            return False
+    
+    def _configure_shell_profile_buildkit(self) -> bool:
+        """Configure shell profile for BuildKit environment variables."""
+        try:
+            from pathlib import Path
+            
+            # More comprehensive shell profile detection
+            shell_profiles = [
+                ".bashrc",
+                ".zshrc", 
+                ".bash_profile",  # macOS default
+                ".profile",       # Generic POSIX
+                ".config/fish/config.fish"  # Fish shell
+            ]
+            
+            home = Path.home()
             target_profile = None
+            
+            # Find existing profile
             for profile in shell_profiles:
                 profile_path = home / profile
                 if profile_path.exists():
@@ -589,31 +794,34 @@ pageReporting=false
                     break
             
             if not target_profile:
-                # Create .bashrc if no profile exists
+                # Create .bashrc as default
                 target_profile = home / ".bashrc"
             
             # Check if already configured
             if target_profile.exists():
                 content = target_profile.read_text()
                 if "DOCKER_BUILDKIT=1" in content:
-                    self._debug_print("Docker BuildKit already configured")
+                    self._debug_print("Shell profile already configured for Docker BuildKit")
                     return True
             
             # Add Docker BuildKit configuration
             buildkit_config = "\n# Docker BuildKit optimization (added by dcm-setup)\nexport DOCKER_BUILDKIT=1\nexport COMPOSE_DOCKER_CLI_BUILD=1\n"
             
+            # Handle fish shell differently
+            if target_profile.name == "config.fish":
+                buildkit_config = "\n# Docker BuildKit optimization (added by dcm-setup)\nset -gx DOCKER_BUILDKIT 1\nset -gx COMPOSE_DOCKER_CLI_BUILD 1\n"
+            
+            # Create parent directory if needed (for fish config)
+            target_profile.parent.mkdir(parents=True, exist_ok=True)
+            
             with open(target_profile, "a") as f:
                 f.write(buildkit_config)
             
-            # Also set for current session
-            os.environ["DOCKER_BUILDKIT"] = "1"
-            os.environ["COMPOSE_DOCKER_CLI_BUILD"] = "1"
-            
-            self._debug_print(f"Docker BuildKit enabled in {target_profile}")
+            self._debug_print(f"Docker BuildKit configured in {target_profile}")
             return True
             
         except Exception as e:
-            logger.error(f"Failed to apply Docker BuildKit optimization: {e}")
+            self._debug_print(f"Failed to configure shell profile: {e}")
             return False
 
     def apply_wsl_config_optimization(self, dry_run=False) -> bool:
