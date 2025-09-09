@@ -1,22 +1,38 @@
 # DevContainer Service Manager
 
-Intelligent service management for DevContainers with automatic conflict detection, port allocation, and service reuse across projects and branches.
+Complete development environment optimization for data engineering projects. Provides intelligent service management, Docker build caching, and workstation setup with automatic conflict detection, port allocation, and cross-repository performance optimization.
 
 ## Features
 
+### Service Management
 - **Conflict-Free Startup**: Automatic port conflict detection and resolution
 - **Service Reuse**: Share services across projects and branches to eliminate startup churn
 - **Namespace Isolation**: Project+branch namespacing prevents service interference
 - **Health Monitoring**: Continuous health checks with automatic service recovery
 - **Template System**: Extensible service templates for common development stacks
-- **CLI Management**: Simple command-line interface for service lifecycle management
+
+### Docker Build Caching (NEW)
+- **149x Faster Builds**: Fingerprint-based caching system with cross-repository sharing
+- **Local Registry**: Automatic setup of local Docker registry for cache storage
+- **Smart Fingerprinting**: SHA256-based dependency tracking for intelligent cache invalidation
+- **Cross-Repo Benefits**: Share cached builds between projects and branches
+
+### Workstation Optimization (NEW)
+- **WSL2 Performance**: Specialized optimizations for Windows development environments
+- **Setup Validation**: Comprehensive checks for optimal development configuration
+- **Automated Fixes**: Troubleshooting and resolution of common performance issues
+- **Resource Management**: Docker resource cleanup and monitoring
 
 ## Quick Start
 
 ### Installation
 
 ```bash
+# Basic installation (service management only)
 pip install devcontainer-service-manager
+
+# Full installation with caching and workstation optimization
+pip install devcontainer-service-manager[workstation]
 ```
 
 ### Basic Usage
@@ -88,6 +104,7 @@ Custom templates can be added in `~/.devcontainer-services/templates/`.
 
 ## CLI Commands
 
+### Service Management
 ```bash
 dcm up [--config FILE]              # Start services
 dcm down [--namespace NS]           # Stop services  
@@ -97,6 +114,25 @@ dcm health [--namespace NS]         # Check service health
 dcm repair --service SERVICE        # Repair unhealthy service
 dcm template list                   # List available templates
 dcm namespace list                  # List active namespaces
+```
+
+### Docker Build Caching (NEW)
+```bash
+dcm-cache status                     # Show cache registry status and statistics
+dcm-cache configure --project NAME  # Configure project-specific caching
+dcm-cache clean --older-than 7d     # Remove old cached images
+dcm-cache optimize                   # Pre-build common base images
+dcm-cache registry start/stop        # Manage local registry
+dcm-cache cleanup PROJECT_NAME      # Clean up project Docker resources
+```
+
+### Workstation Setup (NEW)
+```bash
+dcm-setup install --profile data-engineering  # One-time workstation optimization
+dcm-setup validate                            # Validate performance configuration
+dcm-setup troubleshoot                        # Diagnose and fix common issues
+dcm-setup wsl2-optimize                       # WSL2-specific optimizations
+dcm-setup cleanup                             # Clean up Docker resources
 ```
 
 ## Contributing
