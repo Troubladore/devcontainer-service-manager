@@ -60,7 +60,7 @@ For contributors or users who want the latest features.
 
 ```bash
 # Clone repository
-git clone https://github.com/your-repo/devcontainer-service-manager.git
+git clone https://github.com/Troubladore/devcontainer-service-manager.git
 cd devcontainer-service-manager
 
 # Install in development mode
@@ -355,7 +355,7 @@ DCM includes a verification script to ensure clean uninstallation:
 
 ```bash
 # Download and run uninstall verification
-curl -fsSL https://raw.githubusercontent.com/your-repo/devcontainer-service-manager/main/scripts/verify-uninstall.sh -o verify-uninstall.sh
+curl -fsSL https://raw.githubusercontent.com/Troubladore/devcontainer-service-manager/main/scripts/verify-uninstall.sh -o verify-uninstall.sh
 chmod +x verify-uninstall.sh
 ./verify-uninstall.sh
 ```

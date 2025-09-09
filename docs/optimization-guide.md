@@ -203,7 +203,7 @@ mkdir -p ~/workspace
 
 # 2. Option A: Clone fresh repositories
 cd ~/workspace
-git clone <your-repo-url>
+git clone https://github.com/Troubladore/devcontainer-service-manager.git
 
 # 2. Option B: Copy existing repositories
 cp -r /mnt/c/path/to/your/project ~/workspace/

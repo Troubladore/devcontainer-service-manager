@@ -199,12 +199,12 @@ def validate(verbose, debug):
             console.print(f"🔧 Address the {overall_issues} issues above for optimal performance")
             console.print("🚀 Quick fix: dcm-setup optimize --all")
             console.print("📖 For detailed context and implementation guidance:")
-            console.print("   https://github.com/your-repo/devcontainer-service-manager/blob/main/docs/optimization-guide.md")
+            console.print("   https://github.com/Troubladore/devcontainer-service-manager/blob/main/docs/optimization-guide.md")
         else:
             console.print(f"💡 Consider the {overall_recommendations} recommendations for further optimization")
             console.print("🚀 Quick apply: dcm-setup optimize --all")
             console.print("📖 For detailed context and implementation guidance:")
-            console.print("   https://github.com/your-repo/devcontainer-service-manager/blob/main/docs/optimization-guide.md")
+            console.print("   https://github.com/Troubladore/devcontainer-service-manager/blob/main/docs/optimization-guide.md")
             
     except Exception as e:
         console.print(f"❌ Validation failed: {e}")
