@@ -205,6 +205,7 @@ class TestWSLConfigOptimization:
              patch('os.listdir') as mock_listdir, \
              patch('os.path.isdir') as mock_isdir, \
              patch('os.path.getsize') as mock_getsize, \
+             patch('subprocess.run') as mock_subprocess, \
              patch('builtins.open', mock_open()) as mock_file:
             
             # Mock exists: Users directory exists, .wslconfig doesn't exist initially but appears after write
@@ -222,6 +223,9 @@ class TestWSLConfigOptimization:
             mock_listdir.return_value = ['testuser', 'Public']
             mock_isdir.return_value = True
             mock_getsize.return_value = 250  # Mock file size
+            
+            # Mock whoami subprocess call to return testuser
+            mock_subprocess.return_value = Mock(returncode=0, stdout='testuser\n')
             
             result = optimizer.apply_wsl_config_optimization(dry_run=False)
             
@@ -257,13 +261,18 @@ class TestWSLConfigOptimization:
     @patch('os.path.exists')
     @patch('os.listdir')
     @patch('os.path.isdir')
+    @patch('subprocess.run')
     @patch('builtins.open', new_callable=mock_open)
-    def test_wsl_config_multiple_users_debug(self, mock_file, mock_isdir, mock_listdir, mock_exists, mock_detect):
+    def test_wsl_config_multiple_users_debug(self, mock_file, mock_subprocess, mock_isdir, mock_listdir, mock_exists, mock_detect):
         """Test WSL config optimization with multiple users (provides manual instructions)."""
         mock_detect.return_value = {'is_wsl': True, 'wsl_version': '2', 'platform': 'Linux'}
         mock_exists.return_value = True
         mock_listdir.return_value = ['alice', 'bob', 'Public', 'Default']
-        mock_isdir.return_value = True
+        # Mock isdir to return True only for existing users
+        mock_isdir.side_effect = lambda path: any(user in path for user in ['alice', 'bob', 'Public', 'Default'])
+        
+        # Mock whoami to return a user that doesn't exist in the directory (forcing fallback)
+        mock_subprocess.return_value = Mock(returncode=0, stdout='nonexistentuser\n')
         
         optimizer = WorkstationOptimizer(debug_mode=True)  # Enable debug mode
         result = optimizer.apply_wsl_config_optimization(dry_run=False)

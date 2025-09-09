@@ -932,24 +932,48 @@ systemd=true
             # Create instructions for user to apply on Windows side
             windows_home = "/mnt/c/Users"
             
-            # Try to determine Windows username
+            # Try to determine Windows username using multiple methods
             windows_user = None
             self._debug_print(f"Checking for Windows Users directory at {windows_home}")
             
             if os.path.exists(windows_home):
-                self._debug_print(f"Windows Users directory found, listing users...")
-                users = [d for d in os.listdir(windows_home) if os.path.isdir(os.path.join(windows_home, d))]
-                self._debug_print(f"Found directories: {users}")
+                self._debug_print(f"Windows Users directory found, detecting username...")
                 
-                # Filter out system directories
-                users = [u for u in users if u not in ['Public', 'Default', 'Default User', 'All Users']]
-                self._debug_print(f"Filtered user directories: {users}")
+                # Method 1: Try WSL username first (most reliable)
+                try:
+                    import subprocess
+                    result = subprocess.run(['whoami'], capture_output=True, text=True, timeout=5)
+                    if result.returncode == 0:
+                        wsl_username = result.stdout.strip()
+                        self._debug_print(f"WSL username from whoami: {wsl_username}")
+                        
+                        # Check if this username exists as a Windows user directory
+                        potential_windows_path = os.path.join(windows_home, wsl_username)
+                        if os.path.isdir(potential_windows_path):
+                            windows_user = wsl_username
+                            self._debug_print(f"✅ Matched WSL username to Windows user: {windows_user}")
+                        else:
+                            self._debug_print(f"WSL username {wsl_username} not found in Windows Users")
+                except Exception as e:
+                    self._debug_print(f"Failed to get WSL username: {e}")
                 
-                if len(users) == 1:
-                    windows_user = users[0]
-                    self._debug_print(f"Single user detected: {windows_user}")
-                elif len(users) > 1:
-                    self._debug_print(f"Multiple users found ({users}), will provide manual instructions")
+                # Method 2: Fallback to directory enumeration if Method 1 failed
+                if not windows_user:
+                    self._debug_print("Falling back to directory enumeration method...")
+                    users = [d for d in os.listdir(windows_home) if os.path.isdir(os.path.join(windows_home, d))]
+                    self._debug_print(f"Found directories: {users}")
+                    
+                    # Filter out system directories
+                    users = [u for u in users if u not in ['Public', 'Default', 'Default User', 'All Users']]
+                    self._debug_print(f"Filtered user directories: {users}")
+                    
+                    if len(users) == 1:
+                        windows_user = users[0]
+                        self._debug_print(f"Single user detected via enumeration: {windows_user}")
+                    elif len(users) > 1:
+                        self._debug_print(f"Multiple users found ({users}), will provide manual instructions")
+                    else:
+                        self._debug_print("No valid user directories found")
             else:
                 self._debug_print(f"Windows Users directory not found at {windows_home}")
             
@@ -999,21 +1023,33 @@ systemd=true
                     logger.error(f"❌ Failed to write .wslconfig file: {write_error}")
                     return False
             else:
-                # Provide instructions for manual creation
-                logger.info("💡 Could not automatically create .wslconfig file.")
+                # Show what we tried and why it failed, then provide manual instructions
+                logger.info("⚠️ Automatic .wslconfig creation failed - providing manual instructions")
+                logger.info(f"🔍 Attempted to access: {windows_home}")
+                
                 if os.path.exists(windows_home):
                     users = [d for d in os.listdir(windows_home) if os.path.isdir(os.path.join(windows_home, d))]
+                    all_users = users.copy()  # Keep original list for reporting
                     users = [u for u in users if u not in ['Public', 'Default', 'Default User', 'All Users']]
+                    
+                    logger.info(f"📁 Found in Windows Users directory: {', '.join(all_users)}")
+                    logger.info(f"👤 Valid user directories: {', '.join(users) if users else 'None'}")
+                    
                     if len(users) > 1:
-                        logger.info(f"💡 Multiple users detected: {', '.join(users)}")
+                        logger.info(f"⚠️ Multiple users detected: {', '.join(users)}")
                         logger.info("💡 Please create .wslconfig file manually for your user:")
                         for user in users:
-                            logger.info(f"   For {user}: C:\\Users\\{user}\\.wslconfig")
+                            logger.info(f"   📄 For {user}: C:\\Users\\{user}\\.wslconfig")
+                    elif len(users) == 0:
+                        logger.info("❌ No valid Windows user directories found after filtering")
+                        logger.info("💡 Please create C:\\Users\\<your-username>\\.wslconfig")
                     else:
-                        logger.info("💡 Unable to determine Windows username automatically.")
+                        # This shouldn't happen (single user should be handled above)
+                        logger.error("❌ Unexpected error in user detection logic")
                         logger.info("💡 Please create C:\\Users\\<your-username>\\.wslconfig")
                 else:
-                    logger.info("💡 Windows Users directory not accessible from WSL.")
+                    logger.error(f"❌ Windows Users directory not found at: {windows_home}")
+                    logger.info("💡 This suggests WSL2 Windows filesystem mount issue")
                     logger.info("💡 Please create C:\\Users\\<your-username>\\.wslconfig")
                 
                 logger.info("💡 File content should be:")
