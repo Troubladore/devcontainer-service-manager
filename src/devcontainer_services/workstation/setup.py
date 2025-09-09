@@ -696,6 +696,8 @@ systemd=true
             return True
             
         try:
+            import os
+            
             # Check current location
             current_dir = os.getcwd()
             
