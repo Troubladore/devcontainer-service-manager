@@ -74,8 +74,19 @@ Docker: {'Available' if optimizer.system_info['docker_available'] else 'Not Avai
 
 
 @setup.command()
-def validate():
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed diagnostic information")
+@click.option("--debug", is_flag=True, help="Show debug output including detection methods")
+def validate(verbose, debug):
     """Validate workstation setup and performance configuration."""
+    
+    # Configure logging level based on flags
+    if debug:
+        logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
+        console.print("🐛 Debug mode enabled - showing detailed detection methods")
+    elif verbose:
+        logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+        console.print("📊 Verbose mode enabled - showing detailed information")
+    
     console.print("🔍 Validating workstation setup...")
     
     try:
@@ -251,18 +262,33 @@ def troubleshoot():
 
 
 @setup.command()
-def wsl2_optimize():
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed diagnostic information")
+@click.option("--debug", is_flag=True, help="Show debug output including detection methods")
+def wsl2_optimize(verbose, debug):
     """Apply WSL2-specific performance optimizations."""
+    
+    # Configure logging level based on flags
+    if debug:
+        logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
+        console.print("🐛 Debug mode enabled - showing detailed WSL2 detection and optimization steps")
+    elif verbose:
+        logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+        console.print("📊 Verbose mode enabled - showing detailed optimization information")
+    
     console.print("🚀 Applying WSL2 performance optimizations...")
     
     optimizer = WorkstationOptimizer()
     
     if not optimizer.system_info.get("is_wsl"):
         console.print("❌ This command only works in WSL environments")
+        if debug or verbose:
+            console.print("💡 WSL2 detection failed. Run with --debug to see detection method details")
         return
     
     if optimizer.system_info.get("wsl_version") != "2":
         console.print("⚠️ WSL2 not detected, but applying available optimizations...")
+        if debug or verbose:
+            console.print(f"📊 Detected WSL version: {optimizer.system_info.get('wsl_version')}")
     
     try:
         success = optimizer.optimize_wsl2_performance()

@@ -42,61 +42,96 @@ class WorkstationOptimizer:
         """Check if running in WSL environment using multiple detection methods."""
         import os
         
+        logger.debug("🔍 Starting WSL2 detection using 6 different methods...")
+        
         # Method 1: Check /proc/version for Microsoft/WSL indicators
+        logger.debug("Method 1: Checking /proc/version for Microsoft/WSL indicators")
         try:
             with open('/proc/version', 'r') as f:
                 content = f.read().lower()
+                logger.debug(f"  /proc/version content: {content.strip()}")
                 if 'microsoft' in content or 'wsl' in content:
-                    logger.debug("WSL detected via /proc/version")
+                    logger.debug("✅ WSL detected via /proc/version - found Microsoft/WSL indicators")
                     return True
-        except:
-            pass
+                else:
+                    logger.debug("❌ Method 1 failed: No Microsoft/WSL indicators in /proc/version")
+        except Exception as e:
+            logger.debug(f"❌ Method 1 failed: Cannot read /proc/version - {e}")
         
         # Method 2: Check WSL environment variables
-        if os.environ.get('WSL_DISTRO_NAME') or os.environ.get('WSL_INTEROP'):
-            logger.debug("WSL detected via environment variables")
+        logger.debug("Method 2: Checking WSL environment variables")
+        wsl_distro = os.environ.get('WSL_DISTRO_NAME')
+        wsl_interop = os.environ.get('WSL_INTEROP')
+        logger.debug(f"  WSL_DISTRO_NAME: {wsl_distro}")
+        logger.debug(f"  WSL_INTEROP: {wsl_interop}")
+        if wsl_distro or wsl_interop:
+            logger.debug("✅ WSL detected via environment variables")
             return True
+        else:
+            logger.debug("❌ Method 2 failed: WSL environment variables not found")
         
         # Method 3: Check /proc/sys/kernel/osrelease
+        logger.debug("Method 3: Checking /proc/sys/kernel/osrelease")
         try:
             with open('/proc/sys/kernel/osrelease', 'r') as f:
                 content = f.read().lower()
+                logger.debug(f"  kernel osrelease: {content.strip()}")
                 if 'microsoft' in content or 'wsl' in content:
-                    logger.debug("WSL detected via kernel osrelease")
+                    logger.debug("✅ WSL detected via kernel osrelease")
                     return True
-        except:
-            pass
+                else:
+                    logger.debug("❌ Method 3 failed: No Microsoft/WSL in kernel osrelease")
+        except Exception as e:
+            logger.debug(f"❌ Method 3 failed: Cannot read kernel osrelease - {e}")
         
         # Method 4: Check for WSL-specific mount points
+        logger.debug("Method 4: Checking for WSL-specific mount points")
         try:
             result = subprocess.run(['mount'], capture_output=True, text=True, timeout=5)
             if result.returncode == 0:
                 mount_output = result.stdout.lower()
+                logger.debug(f"  mount output (first 500 chars): {mount_output[:500]}")
                 if '/mnt/c' in mount_output or '/mnt/wsl' in mount_output:
-                    logger.debug("WSL detected via mount points")
+                    logger.debug("✅ WSL detected via mount points - found /mnt/c or /mnt/wsl")
                     return True
-        except:
-            pass
+                else:
+                    logger.debug("❌ Method 4 failed: No /mnt/c or /mnt/wsl in mount output")
+            else:
+                logger.debug(f"❌ Method 4 failed: mount command failed with code {result.returncode}")
+        except Exception as e:
+            logger.debug(f"❌ Method 4 failed: mount command error - {e}")
         
         # Method 5: Check if wsl.exe is available (Windows interop)
+        logger.debug("Method 5: Checking if wsl.exe is available via Windows interop")
         try:
             result = subprocess.run(['which', 'wsl.exe'], capture_output=True, text=True, timeout=5)
+            logger.debug(f"  which wsl.exe result: returncode={result.returncode}, stdout='{result.stdout.strip()}', stderr='{result.stderr.strip()}'")
             if result.returncode == 0:
-                logger.debug("WSL detected via wsl.exe availability")
+                logger.debug("✅ WSL detected via wsl.exe availability")
                 return True
-        except:
-            pass
+            else:
+                logger.debug("❌ Method 5 failed: wsl.exe not found in PATH")
+        except Exception as e:
+            logger.debug(f"❌ Method 5 failed: wsl.exe check error - {e}")
         
         # Method 6: Check for Windows-specific directories in /mnt
+        logger.debug("Method 6: Checking for Windows directories in /mnt")
         try:
             from pathlib import Path
-            if Path('/mnt/c').exists() or Path('/mnt/d').exists():
-                logger.debug("WSL detected via Windows mount directories")
+            mnt_c_exists = Path('/mnt/c').exists()
+            mnt_d_exists = Path('/mnt/d').exists()
+            logger.debug(f"  /mnt/c exists: {mnt_c_exists}")
+            logger.debug(f"  /mnt/d exists: {mnt_d_exists}")
+            if mnt_c_exists or mnt_d_exists:
+                logger.debug("✅ WSL detected via Windows mount directories")
                 return True
-        except:
-            pass
+            else:
+                logger.debug("❌ Method 6 failed: No Windows mount directories found")
+        except Exception as e:
+            logger.debug(f"❌ Method 6 failed: Mount directory check error - {e}")
         
-        logger.debug("WSL not detected by any method")
+        logger.debug("🚫 WSL NOT DETECTED: All 6 detection methods failed")
+        logger.info("WSL2 detection failed - run with --debug flag for detailed method analysis")
         return False
     
     def _get_wsl_version(self) -> str:
