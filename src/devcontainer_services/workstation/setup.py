@@ -39,12 +39,65 @@ class WorkstationOptimizer:
         return info
     
     def _is_wsl(self) -> bool:
-        """Check if running in WSL environment."""
+        """Check if running in WSL environment using multiple detection methods."""
+        import os
+        
+        # Method 1: Check /proc/version for Microsoft/WSL indicators
         try:
             with open('/proc/version', 'r') as f:
-                return 'microsoft' in f.read().lower()
+                content = f.read().lower()
+                if 'microsoft' in content or 'wsl' in content:
+                    logger.debug("WSL detected via /proc/version")
+                    return True
         except:
-            return False
+            pass
+        
+        # Method 2: Check WSL environment variables
+        if os.environ.get('WSL_DISTRO_NAME') or os.environ.get('WSL_INTEROP'):
+            logger.debug("WSL detected via environment variables")
+            return True
+        
+        # Method 3: Check /proc/sys/kernel/osrelease
+        try:
+            with open('/proc/sys/kernel/osrelease', 'r') as f:
+                content = f.read().lower()
+                if 'microsoft' in content or 'wsl' in content:
+                    logger.debug("WSL detected via kernel osrelease")
+                    return True
+        except:
+            pass
+        
+        # Method 4: Check for WSL-specific mount points
+        try:
+            result = subprocess.run(['mount'], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                mount_output = result.stdout.lower()
+                if '/mnt/c' in mount_output or '/mnt/wsl' in mount_output:
+                    logger.debug("WSL detected via mount points")
+                    return True
+        except:
+            pass
+        
+        # Method 5: Check if wsl.exe is available (Windows interop)
+        try:
+            result = subprocess.run(['which', 'wsl.exe'], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                logger.debug("WSL detected via wsl.exe availability")
+                return True
+        except:
+            pass
+        
+        # Method 6: Check for Windows-specific directories in /mnt
+        try:
+            from pathlib import Path
+            if Path('/mnt/c').exists() or Path('/mnt/d').exists():
+                logger.debug("WSL detected via Windows mount directories")
+                return True
+        except:
+            pass
+        
+        logger.debug("WSL not detected by any method")
+        return False
     
     def _get_wsl_version(self) -> str:
         """Get WSL version."""
