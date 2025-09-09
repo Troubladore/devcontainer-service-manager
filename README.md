@@ -33,13 +33,17 @@ For optimal data engineering development experience:
 # 1. Install with workstation optimization (globally available)
 pipx install devcontainer-service-manager[workstation]
 
-# 2. One-time workstation optimization  
+# 2. Ensure pipx binaries are in PATH (required for WSL2/fresh installs)
+pipx ensurepath
+source ~/.bashrc  # OR: exec $SHELL
+
+# 3. One-time workstation optimization  
 dcm-setup install --profile data-engineering
 
-# 3. Validate your setup
+# 4. Validate your setup
 dcm-setup validate
 
-# 4. (Optional) Troubleshoot any issues
+# 5. (Optional) Troubleshoot any issues
 dcm-setup troubleshoot
 ```
 
