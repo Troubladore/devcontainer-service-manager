@@ -27,6 +27,32 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Function to check if command exists (for validation - more thorough)
+command_exists_validation() {
+    # Try multiple methods to avoid cache issues
+    local cmd="$1"
+    
+    # Method 1: Try to run the command (most definitive test)
+    if timeout 3 "$cmd" --version >/dev/null 2>&1 || timeout 3 "$cmd" --help >/dev/null 2>&1 || timeout 3 "$cmd" help >/dev/null 2>&1; then
+        return 0
+    fi
+    
+    # Method 2: Check if executable file exists in PATH locations
+    local path_dirs
+    path_dirs=$(echo "$PATH" | tr ':' '\n' | sort -u)
+    while IFS= read -r location; do
+        if [ -d "$location" ] && [ -f "$location/$cmd" ] && [ -x "$location/$cmd" ]; then
+            # Double-check: try to execute it to make sure it's not a broken shim
+            if timeout 3 "$location/$cmd" --help >/dev/null 2>&1 || timeout 3 "$location/$cmd" --version >/dev/null 2>&1; then
+                return 0
+            fi
+        fi
+    done <<< "$path_dirs"
+    
+    # If we get here, the command is not functionally available
+    return 1
+}
+
 # Function to ask for confirmation
 confirm() {
     if [ "$FORCE_MODE" = true ]; then
@@ -371,32 +397,54 @@ for python_cmd in python python3; do
     fi
 done
 
-# Force remove DCM command files if package removal didn't work
-if [ ${#dcm_locations[@]} -gt 0 ] && [ "$uninstall_success" = false ]; then
-    echo "   ⚠️ Package uninstall methods failed, force removing command files..."
-    for cmd_location in "${dcm_locations[@]}"; do
-        if [ -f "$cmd_location" ]; then
-            rm -f "$cmd_location" && echo "   ✅ Force removed: $cmd_location" || echo "   ⚠️ Failed to remove: $cmd_location"
-        fi
-    done
+# Force remove DCM command files (always do this as package managers might leave shims)
+echo "   Force removing DCM command files from all locations..."
+for cmd_location in "${dcm_locations[@]}"; do
+    if [ -f "$cmd_location" ]; then
+        rm -f "$cmd_location" && echo "   ✅ Force removed: $cmd_location" || echo "   ⚠️ Failed to remove: $cmd_location"
+    fi
+done
+
+# Handle pyenv shims specifically (they might regenerate)
+if command_exists pyenv; then
+    echo "   Handling pyenv shims..."
+    pyenv_shims_dir="$HOME/.pyenv/shims"
+    if [ -d "$pyenv_shims_dir" ]; then
+        all_commands=("${dcm_commands[@]}" "${corrupted_commands[@]}")
+        for cmd in "${all_commands[@]}"; do
+            shim_file="$pyenv_shims_dir/$cmd"
+            if [ -f "$shim_file" ]; then
+                rm -f "$shim_file" && echo "   ✅ Removed pyenv shim: $cmd" || echo "   ⚠️ Failed to remove shim: $cmd"
+            fi
+        done
+        
+        # Rehash pyenv to update shims
+        echo "   Rehashing pyenv to remove stale shims..."
+        pyenv rehash 2>/dev/null && echo "   ✅ Pyenv rehashed successfully" || echo "   ⚠️ Pyenv rehash failed"
+    fi
 fi
 
-# Also check and remove from common installation directories
-echo "   Checking common installation paths..."
+# Also check and remove from common installation directories (comprehensive sweep)
+echo "   Checking common installation paths for any missed commands..."
 common_paths=(
     "$HOME/.local/bin"
     "/usr/local/bin" 
     "/usr/bin"
-    "$HOME/.pyenv/shims"
+    "$HOME/.pyenv/versions/*/bin"
 )
 
-for bin_dir in "${common_paths[@]}"; do
-    # Check both correct and corrupted command names
-    all_commands=("${dcm_commands[@]}" "${corrupted_commands[@]}")
-    for cmd in "${all_commands[@]}"; do
-        cmd_path="$bin_dir/$cmd"
-        if [ -f "$cmd_path" ]; then
-            rm -f "$cmd_path" && echo "   ✅ Removed $cmd_path" || echo "   ⚠️ Failed to remove $cmd_path"
+for bin_pattern in "${common_paths[@]}"; do
+    # Handle glob patterns (like pyenv versions)
+    for bin_dir in $bin_pattern; do
+        if [ -d "$bin_dir" ]; then
+            # Check both correct and corrupted command names
+            all_commands=("${dcm_commands[@]}" "${corrupted_commands[@]}")
+            for cmd in "${all_commands[@]}"; do
+                cmd_path="$bin_dir/$cmd"
+                if [ -f "$cmd_path" ]; then
+                    rm -f "$cmd_path" && echo "   ✅ Removed $cmd_path" || echo "   ⚠️ Failed to remove $cmd_path"
+                fi
+            done
         fi
     done
 done
@@ -451,9 +499,12 @@ commands_remaining=0
 # Check both correct and corrupted command names
 all_commands=("${dcm_commands[@]}" "${corrupted_commands[@]}")
 for cmd in "${all_commands[@]}"; do
-    if command_exists "$cmd"; then
+    if command_exists_validation "$cmd"; then
         echo "   ❌ $cmd is still available"
-        issues+=("Command $cmd still available")
+        # Try to show where it's located for debugging
+        cmd_location=$(command -v "$cmd" 2>/dev/null || echo "location unknown")
+        echo "      Located at: $cmd_location"
+        issues+=("Command $cmd still available at $cmd_location")
         validation_passed=false
         commands_remaining=$((commands_remaining + 1))
     else
