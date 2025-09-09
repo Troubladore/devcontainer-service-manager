@@ -954,27 +954,41 @@ systemd=true
                 self._debug_print(f"Windows Users directory not found at {windows_home}")
             
             if windows_user:
-                wslconfig_path = f"/mnt/c/Users/{windows_user}/.wslconfig"
-                logger.info(f"Creating .wslconfig at {wslconfig_path}")
+                wsl_path = f"/mnt/c/Users/{windows_user}/.wslconfig"
+                windows_path = f"C:\\Users\\{windows_user}\\.wslconfig"
+                
+                logger.info(f"📍 Target file location:")
+                logger.info(f"   WSL path: {wsl_path}")
+                logger.info(f"   Windows path: {windows_path}")
+                logger.info(f"🔧 Creating .wslconfig file...")
                 
                 try:
                     # Create backup if file exists
-                    if os.path.exists(wslconfig_path):
-                        backup_path = f"{wslconfig_path}.backup"
+                    if os.path.exists(wsl_path):
+                        backup_path = f"{wsl_path}.backup"
                         self._debug_print(f"Backing up existing .wslconfig to {backup_path}")
-                        with open(wslconfig_path, "r") as src, open(backup_path, "w") as dst:
+                        with open(wsl_path, "r") as src, open(backup_path, "w") as dst:
                             dst.write(src.read())
+                        logger.info(f"💾 Backed up existing file to {backup_path}")
                     
-                    with open(wslconfig_path, "w") as f:
+                    with open(wsl_path, "w") as f:
                         f.write(wslconfig_content)
                     
-                    # Verify file was created
-                    if os.path.exists(wslconfig_path):
-                        logger.info("✅ .wslconfig created successfully")
-                        logger.info("💡 Restart WSL to apply changes: wsl --shutdown (in Windows)")
+                    # Verify file was created and show contents
+                    if os.path.exists(wsl_path):
+                        # Get file size for verification
+                        file_size = os.path.getsize(wsl_path)
+                        logger.info("✅ .wslconfig created successfully!")
+                        logger.info(f"📄 File created: {windows_path} ({file_size} bytes)")
+                        logger.info("🔍 To verify from Windows:")
+                        logger.info(f"   1. Open File Explorer")  
+                        logger.info(f"   2. Navigate to: {windows_path}")
+                        logger.info(f"   3. Or run in PowerShell: Get-Content '{windows_path}'")
+                        logger.info("💡 Restart WSL to apply changes: wsl --shutdown (in PowerShell)")
                         return True
                     else:
                         logger.error("❌ .wslconfig file was not created successfully")
+                        logger.error(f"❌ Expected file at: {wsl_path}")
                         return False
                         
                 except PermissionError:
@@ -988,12 +1002,24 @@ systemd=true
                 # Provide instructions for manual creation
                 logger.info("💡 Could not automatically create .wslconfig file.")
                 if os.path.exists(windows_home):
-                    logger.info("💡 Multiple users detected or unable to determine Windows username.")
+                    users = [d for d in os.listdir(windows_home) if os.path.isdir(os.path.join(windows_home, d))]
+                    users = [u for u in users if u not in ['Public', 'Default', 'Default User', 'All Users']]
+                    if len(users) > 1:
+                        logger.info(f"💡 Multiple users detected: {', '.join(users)}")
+                        logger.info("💡 Please create .wslconfig file manually for your user:")
+                        for user in users:
+                            logger.info(f"   For {user}: C:\\Users\\{user}\\.wslconfig")
+                    else:
+                        logger.info("💡 Unable to determine Windows username automatically.")
+                        logger.info("💡 Please create C:\\Users\\<your-username>\\.wslconfig")
                 else:
                     logger.info("💡 Windows Users directory not accessible from WSL.")
-                logger.info("💡 Please create C:\\Users\\<your-username>\\.wslconfig with the following content:")
+                    logger.info("💡 Please create C:\\Users\\<your-username>\\.wslconfig")
+                
+                logger.info("💡 File content should be:")
                 for line in wslconfig_content.strip().split('\n'):
                     logger.info(f"   {line}")
+                logger.info("💡 After creating, restart WSL: wsl --shutdown (in PowerShell)")
                 return True
                 
         except Exception as e:

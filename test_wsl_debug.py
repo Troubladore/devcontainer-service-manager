@@ -47,14 +47,25 @@ def test_wsl_config_debug():
         # Check for .wslconfig in each user directory
         for user in users:
             if user not in ['Public', 'Default', 'Default User', 'All Users']:
-                wslconfig_path = f"{windows_users_dir}/{user}/.wslconfig"
-                exists = os.path.exists(wslconfig_path)
+                wsl_path = f"{windows_users_dir}/{user}/.wslconfig"
+                windows_path = f"C:\\Users\\{user}\\.wslconfig"
+                exists = os.path.exists(wsl_path)
+                
                 print(f"   {user}/.wslconfig: {'✅ EXISTS' if exists else '❌ NOT FOUND'}")
+                print(f"      WSL path: {wsl_path}")
+                print(f"      Windows path: {windows_path}")
+                
                 if exists:
-                    with open(wslconfig_path, 'r') as f:
+                    file_size = os.path.getsize(wsl_path)
+                    with open(wsl_path, 'r') as f:
                         content = f.read()
-                    print(f"   Content preview (first 200 chars):")
-                    print(f"   {content[:200]}...")
+                    print(f"      File size: {file_size} bytes")
+                    print(f"      Content preview:")
+                    for i, line in enumerate(content.split('\n')[:5]):  # First 5 lines
+                        print(f"        {line}")
+                    print(f"      Verification from Windows: Get-Content '{windows_path}'")
+                else:
+                    print(f"      File should be created at: {windows_path}")
     else:
         print(f"❌ Windows Users directory not found at {windows_users_dir}")
         print("   This suggests you may not be in WSL2 or there's a mount issue")
