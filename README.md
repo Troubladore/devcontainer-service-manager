@@ -25,13 +25,33 @@ Complete development environment optimization for data engineering projects. Pro
 
 ## Quick Start
 
-### Installation
+### 🚀 **First-Time Setup (Recommended)**
+
+For optimal data engineering development experience:
+
+```bash
+# 1. Install with workstation optimization
+pip install devcontainer-service-manager[workstation]
+
+# 2. One-time workstation optimization  
+dcm-setup install --profile data-engineering
+
+# 3. Validate your setup
+dcm-setup validate
+
+# 4. (Optional) Troubleshoot any issues
+dcm-setup troubleshoot
+```
+
+This provides 149x faster builds, WSL2 optimization, and cross-repository caching.
+
+### Installation Options
 
 ```bash
 # Basic installation (service management only)
 pip install devcontainer-service-manager
 
-# Full installation with caching and workstation optimization
+# Full installation with caching and workstation optimization  
 pip install devcontainer-service-manager[workstation]
 ```
 
@@ -133,6 +153,58 @@ dcm-setup validate                            # Validate performance configurati
 dcm-setup troubleshoot                        # Diagnose and fix common issues
 dcm-setup wsl2-optimize                       # WSL2-specific optimizations
 dcm-setup cleanup                             # Clean up Docker resources
+```
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**WSL2 slow builds:**
+```bash
+# Check if you're in Windows filesystem (slow)
+pwd  # Should show /home/user/... not /mnt/c/...
+
+# Move to WSL2 filesystem for 10x faster performance
+mkdir -p ~/repos && cd ~/repos
+```
+
+**Docker registry won't start:**
+```bash
+# Check what's using port 5000
+sudo netstat -tuln | grep 5000
+
+# Use alternative port if needed  
+dcm-cache registry stop
+# Edit ~/.devcontainer-services/config.yaml to change port
+```
+
+**Permission errors:**
+```bash
+# Fix Docker permissions (Linux)
+sudo usermod -aG docker $USER
+# Logout and login again
+```
+
+**Cache not working:**
+```bash
+# Verify registry status
+dcm-cache status
+
+# Restart registry
+dcm-cache registry stop && dcm-cache registry start
+```
+
+### Getting Help
+
+```bash
+# Validate your setup
+dcm-setup validate
+
+# Automated troubleshooting
+dcm-setup troubleshoot
+
+# Check resource usage
+dcm-cache status
 ```
 
 ## Contributing
