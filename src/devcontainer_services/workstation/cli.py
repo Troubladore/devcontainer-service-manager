@@ -90,7 +90,7 @@ def validate(verbose, debug):
     console.print("🔍 Validating workstation setup...")
     
     try:
-        results = validate_workstation_setup()
+        results = validate_workstation_setup(debug_mode=debug)
         system_info = results["system_info"]
         validation = results["validation"]
         
@@ -196,7 +196,7 @@ def troubleshoot():
     
     # Run validation first
     try:
-        results = validate_workstation_setup()
+        results = validate_workstation_setup(debug_mode=False)  # Don't overwhelm troubleshoot with debug
         validation = results["validation"]
         optimizer = results["optimizer"]
         
@@ -277,7 +277,7 @@ def wsl2_optimize(verbose, debug):
     
     console.print("🚀 Applying WSL2 performance optimizations...")
     
-    optimizer = WorkstationOptimizer()
+    optimizer = WorkstationOptimizer(debug_mode=debug)
     
     if not optimizer.system_info.get("is_wsl"):
         console.print("❌ This command only works in WSL environments")
