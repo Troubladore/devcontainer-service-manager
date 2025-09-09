@@ -30,8 +30,8 @@ Complete development environment optimization for data engineering projects. Pro
 For optimal data engineering development experience:
 
 ```bash
-# 1. Install with workstation optimization
-pip install devcontainer-service-manager[workstation]
+# 1. Install with workstation optimization (globally available)
+pipx install devcontainer-service-manager[workstation]
 
 # 2. One-time workstation optimization  
 dcm-setup install --profile data-engineering
@@ -49,10 +49,10 @@ This provides 149x faster builds, WSL2 optimization, and cross-repository cachin
 
 ```bash
 # Basic installation (service management only)
-pip install devcontainer-service-manager
+pipx install devcontainer-service-manager
 
 # Full installation with caching and workstation optimization  
-pip install devcontainer-service-manager[workstation]
+pipx install devcontainer-service-manager[workstation]
 ```
 
 ### Basic Usage
@@ -180,9 +180,12 @@ dcm-cache registry stop
 
 **Permission errors:**
 ```bash
-# Fix Docker permissions (Linux)
+# Fix Docker permissions (Linux/WSL2)
 sudo usermod -aG docker $USER
 # Logout and login again
+
+# If pipx installation fails due to permissions
+pipx reinstall devcontainer-service-manager[workstation]
 ```
 
 **Cache not working:**
