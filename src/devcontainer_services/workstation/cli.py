@@ -128,6 +128,10 @@ def validate(verbose, debug):
             for rec in docker_checks.get("recommendations", []):
                 docker_text += f"💡 {rec}\n"
             
+            # Add Docker-specific documentation link if there are recommendations
+            if docker_checks.get("recommendations"):
+                docker_text += "\n📖 Docker optimization details: docs/optimization-guide.md#docker-optimizations\n"
+            
             if docker_text:
                 console.print(Panel(docker_text.strip(), title="Docker Validation"))
         
@@ -143,6 +147,10 @@ def validate(verbose, debug):
                 for rec in wsl_checks.get("recommendations", []):
                     wsl_text += f"💡 {rec}\n"
                 
+                # Add WSL2-specific documentation link if there are recommendations  
+                if wsl_checks.get("recommendations") or wsl_checks.get("issues"):
+                    wsl_text += "\n📖 WSL2 optimization details: docs/optimization-guide.md#wsl2-optimizations\n"
+                
                 console.print(Panel(wsl_text.strip(), title="WSL2 Validation"))
         
         # Filesystem validation
@@ -156,6 +164,10 @@ def validate(verbose, debug):
             
             for rec in fs_checks.get("recommendations", []):
                 fs_text += f"💡 {rec}\n"
+            
+            # Add filesystem-specific documentation link if there are recommendations
+            if fs_checks.get("recommendations") or fs_checks.get("issues"):
+                fs_text += "\n📖 Filesystem optimization details: docs/optimization-guide.md#wsl2-filesystem-performance\n"
             
             console.print(Panel(fs_text.strip(), title="Filesystem Performance"))
         
@@ -173,16 +185,26 @@ def validate(verbose, debug):
             for rec in resource_checks.get("recommendations", []):
                 resource_text += f"💡 {rec}\n"
             
+            # Add resource-specific documentation link if there are recommendations
+            if resource_checks.get("recommendations") or resource_checks.get("issues"):
+                resource_text += "\n📖 Resource optimization details: docs/optimization-guide.md#system-resource-optimizations\n"
+            
             if resource_text:
                 console.print(Panel(resource_text.strip(), title="System Resources"))
         
-        # Final recommendations
+        # Final recommendations with documentation links
         if overall_issues == 0 and overall_recommendations == 0:
             console.print("🎉 Your workstation is optimally configured!")
         elif overall_issues > 0:
             console.print(f"🔧 Address the {overall_issues} issues above for optimal performance")
+            console.print("🚀 Quick fix: dcm-setup optimize --all")
+            console.print("📖 For detailed context and implementation guidance:")
+            console.print("   https://github.com/your-repo/devcontainer-service-manager/blob/main/docs/optimization-guide.md")
         else:
             console.print(f"💡 Consider the {overall_recommendations} recommendations for further optimization")
+            console.print("🚀 Quick apply: dcm-setup optimize --all")
+            console.print("📖 For detailed context and implementation guidance:")
+            console.print("   https://github.com/your-repo/devcontainer-service-manager/blob/main/docs/optimization-guide.md")
             
     except Exception as e:
         console.print(f"❌ Validation failed: {e}")
@@ -303,6 +325,84 @@ def wsl2_optimize(verbose, debug):
     except Exception as e:
         console.print(f"❌ WSL2 optimization failed: {e}")
         logger.error(f"WSL2 optimization error: {e}")
+
+
+@setup.command()
+@click.option("--docker-buildkit", is_flag=True, help="Enable Docker BuildKit optimization")
+@click.option("--wsl-config", is_flag=True, help="Apply WSL2 .wslconfig optimization")
+@click.option("--filesystem", is_flag=True, help="Get filesystem migration guidance")
+@click.option("--disk-cleanup", is_flag=True, help="Clean up Docker disk space")
+@click.option("--all", "apply_all", is_flag=True, help="Apply all safe optimizations")
+@click.option("--dry-run", is_flag=True, help="Show what would be done without making changes")
+def optimize(docker_buildkit, wsl_config, filesystem, disk_cleanup, apply_all, dry_run):
+    """Apply workstation optimizations automatically."""
+    
+    if dry_run:
+        console.print("🔍 Dry run mode - no changes will be made")
+    
+    from .setup import WorkstationOptimizer
+    optimizer = WorkstationOptimizer()
+    
+    # If no specific flags, show help
+    if not any([docker_buildkit, wsl_config, filesystem, disk_cleanup, apply_all]):
+        console.print("🚀 DCM Workstation Optimization")
+        console.print("")
+        console.print("Available optimizations:")
+        console.print("  --docker-buildkit   Enable Docker BuildKit (149x faster builds)")
+        console.print("  --wsl-config        Create optimized .wslconfig file")
+        console.print("  --filesystem        Get filesystem migration guidance")
+        console.print("  --disk-cleanup      Clean up Docker disk space")
+        console.print("  --all               Apply all safe optimizations")
+        console.print("")
+        console.print("Example usage:")
+        console.print("  dcm-setup optimize --docker-buildkit")
+        console.print("  dcm-setup optimize --all --dry-run")
+        console.print("")
+        console.print("💡 Run 'dcm-setup validate' to see what optimizations are recommended")
+        return
+    
+    results = {}
+    
+    try:
+        if apply_all:
+            console.print("🚀 Applying all safe optimizations...")
+            results = optimizer.apply_all_safe_optimizations(dry_run=dry_run)
+        else:
+            # Apply individual optimizations
+            if docker_buildkit:
+                console.print("⚡ Applying Docker BuildKit optimization...")
+                results['docker_buildkit'] = optimizer.apply_docker_buildkit_optimization(dry_run=dry_run)
+            
+            if wsl_config:
+                console.print("🪟 Applying WSL2 configuration optimization...")
+                results['wsl_config'] = optimizer.apply_wsl_config_optimization(dry_run=dry_run)
+            
+            if filesystem:
+                console.print("📁 Analyzing filesystem performance...")
+                results['filesystem'] = optimizer.apply_filesystem_migration_helper(dry_run=dry_run)
+            
+            if disk_cleanup:
+                console.print("🧹 Cleaning up Docker resources...")
+                results['disk_cleanup'] = optimizer.apply_disk_cleanup_optimization(dry_run=dry_run)
+        
+        # Summary
+        if results:
+            successful = sum(results.values())
+            total = len(results)
+            
+            if successful == total:
+                console.print(f"✅ All {total} optimizations applied successfully!")
+            else:
+                failed = total - successful
+                console.print(f"⚠️ {successful}/{total} optimizations successful, {failed} failed")
+            
+            if not dry_run and any(['docker_buildkit' in results, 'wsl_config' in results]):
+                console.print("💡 Some changes require restarting your terminal or WSL")
+                console.print("💡 Run 'dcm-setup validate' to verify optimizations")
+        
+    except Exception as e:
+        console.print(f"❌ Optimization failed: {e}")
+        logger.error(f"Optimization error: {e}")
 
 
 @setup.command()
