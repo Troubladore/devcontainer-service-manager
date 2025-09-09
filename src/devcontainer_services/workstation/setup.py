@@ -326,8 +326,9 @@ class WorkstationOptimizer:
             validation["issues"].append(f"Failed to get Docker info: {docker_info['error']}")
             return validation
         
-        # Check BuildKit support
-        if not docker_info.get("BuilderVersion", "").startswith("buildx"):
+        # Check BuildKit support (modern approach)
+        buildkit_enabled = self._check_buildkit_status()
+        if not buildkit_enabled:
             buildkit_instructions = (
                 "Enable Docker BuildKit for faster builds (149x improvement with DCM caching):\n"
                 "  🚀 Easy: dcm-setup optimize --docker-buildkit\n"
@@ -414,6 +415,75 @@ class WorkstationOptimizer:
                 pass
         
         return validation
+    
+    def _check_buildkit_status(self) -> bool:
+        """Check if Docker BuildKit is currently enabled using multiple methods."""
+        try:
+            import subprocess
+            import os
+            
+            # Method 1: Check DOCKER_BUILDKIT environment variable
+            if os.environ.get("DOCKER_BUILDKIT") == "1":
+                self._debug_print("BuildKit enabled via DOCKER_BUILDKIT environment variable")
+                return True
+            
+            # Method 2: Check if buildx is available and has BuildKit builders
+            try:
+                result = subprocess.run(['docker', 'buildx', 'ls'], 
+                                      capture_output=True, text=True, timeout=10)
+                if result.returncode == 0:
+                    # Look for running BuildKit instances
+                    lines = result.stdout.strip().split('\n')
+                    for line in lines[1:]:  # Skip header
+                        if 'running' in line and ('v0.' in line or 'buildkit' in line.lower()):
+                            self._debug_print("BuildKit enabled via active buildx builder")
+                            return True
+            except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                pass
+            
+            # Method 3: Check daemon configuration (for native Docker)
+            from pathlib import Path
+            daemon_paths = [
+                Path.home() / ".docker" / "daemon.json",
+                Path("/etc/docker/daemon.json")
+            ]
+            
+            for daemon_path in daemon_paths:
+                if daemon_path.exists():
+                    try:
+                        import json
+                        with open(daemon_path, 'r') as f:
+                            config = json.load(f)
+                        if config.get("features", {}).get("buildkit", False):
+                            self._debug_print(f"BuildKit enabled via daemon.json: {daemon_path}")
+                            return True
+                    except (json.JSONDecodeError, PermissionError):
+                        continue
+            
+            # Method 4: Test actual build command (most definitive but slower)
+            if self.debug_mode:  # Only do this expensive check in debug mode
+                try:
+                    # Create a minimal test Dockerfile in memory and test build
+                    test_result = subprocess.run([
+                        'docker', 'build', '-t', 'dcm-buildkit-test', '-f', '-', '.'
+                    ], input='FROM scratch\nCMD echo test', text=True, 
+                    capture_output=True, timeout=30)
+                    
+                    if test_result.returncode == 0 and 'buildkit' in test_result.stderr.lower():
+                        self._debug_print("BuildKit confirmed via test build")
+                        # Clean up test image
+                        subprocess.run(['docker', 'rmi', 'dcm-buildkit-test'], 
+                                     capture_output=True, timeout=10)
+                        return True
+                except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                    pass
+            
+            self._debug_print("BuildKit not detected via any method")
+            return False
+            
+        except Exception as e:
+            self._debug_print(f"Error checking BuildKit status: {e}")
+            return False
     
     def _validate_filesystem_performance(self) -> Dict[str, any]:
         """Test file system performance for development workflows."""
