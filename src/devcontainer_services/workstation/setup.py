@@ -627,6 +627,8 @@ pageReporting=false
             return True
             
         try:
+            import os
+            
             # Generate .wslconfig content
             wslconfig_content = """# WSL2 Configuration (added by dcm-setup)
 [wsl2]
