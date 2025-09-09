@@ -16,6 +16,11 @@ echo
 echo "This script will completely remove DCM from your system without requiring"
 echo "DCM commands to be functional. It works even with broken/old installations."
 echo
+echo "📋 Will remove both correct and corrupted DCM installations:"
+echo "   Correct commands: dcm, dcm-setup, dcm-cache"
+echo "   Corrupted variants: dcmworkspace, dcm-setupworkspace, dcm-cacheworkspace"
+echo "   Package names: devcontainer-service-manager, devcontainer-service-managerworkspace"
+echo
 
 # Function to check if command exists
 command_exists() {
@@ -236,9 +241,15 @@ done
 echo
 echo "6️⃣  Aggressively uninstalling DCM packages..."
 
-# Find all potential installation locations for DCM commands
+# Find all potential installation locations for DCM commands (including corrupted variants)
 dcm_locations=()
-for cmd in dcm dcm-setup dcm-cache; do
+# Correct command names
+dcm_commands=("dcm" "dcm-setup" "dcm-cache")
+# Corrupted command names (from bad installations)
+corrupted_commands=("dcmworkspace" "dcm-setupworkspace" "dcm-cacheworkspace")
+
+echo "   Scanning for DCM commands (correct and corrupted variants)..."
+for cmd in "${dcm_commands[@]}" "${corrupted_commands[@]}"; do
     cmd_location=$(which "$cmd" 2>/dev/null || true)
     if [ -n "$cmd_location" ]; then
         dcm_locations+=("$cmd_location")
@@ -249,62 +260,113 @@ done
 # Try all package managers aggressively
 uninstall_success=false
 
-# Try pipx first (most common)
+# Try pipx first (most common) - try both correct and corrupted package names
 if command_exists pipx; then
     echo "   Trying pipx uninstall..."
+    pipx_uninstalled=false
+    
+    # Try correct package name
     if pipx uninstall devcontainer-service-manager 2>/dev/null; then
-        echo "   ✅ Uninstalled via pipx"
+        echo "   ✅ Uninstalled devcontainer-service-manager via pipx"
+        pipx_uninstalled=true
         uninstall_success=true
-    else
-        echo "   ℹ️ Not installed via pipx"
-        # Force remove pipx venv if it exists
-        pipx_venv_path="$HOME/.local/share/pipx/venvs/devcontainer-service-manager"
-        if [ -d "$pipx_venv_path" ]; then
-            rm -rf "$pipx_venv_path" && echo "   ✅ Removed orphaned pipx venv" || echo "   ⚠️ Failed to remove pipx venv"
+    fi
+    
+    # Try potential corrupted package names
+    corrupted_package_names=("devcontainer-service-managerworkspace" "dcm-setupworkspace")
+    for pkg_name in "${corrupted_package_names[@]}"; do
+        if pipx uninstall "$pkg_name" 2>/dev/null; then
+            echo "   ✅ Uninstalled corrupted package $pkg_name via pipx"
+            pipx_uninstalled=true
+            uninstall_success=true
         fi
+    done
+    
+    if [ "$pipx_uninstalled" = false ]; then
+        echo "   ℹ️ No DCM packages found via pipx"
+        # Force remove pipx venvs if they exist (both correct and corrupted names)
+        venv_names=("devcontainer-service-manager" "devcontainer-service-managerworkspace" "dcm-setupworkspace")
+        for venv_name in "${venv_names[@]}"; do
+            pipx_venv_path="$HOME/.local/share/pipx/venvs/$venv_name"
+            if [ -d "$pipx_venv_path" ]; then
+                rm -rf "$pipx_venv_path" && echo "   ✅ Removed orphaned pipx venv: $venv_name" || echo "   ⚠️ Failed to remove pipx venv: $venv_name"
+            fi
+        done
     fi
 fi
 
-# Try uv
+# Try uv - both correct and corrupted package names
 if command_exists uv; then
     echo "   Trying uv uninstall..."
-    if uv pip uninstall devcontainer-service-manager --system 2>/dev/null; then
-        echo "   ✅ Uninstalled via uv"
-        uninstall_success=true
-    else
-        echo "   ℹ️ Not installed via uv"
+    uv_uninstalled=false
+    
+    # Try all possible package names
+    all_package_names=("devcontainer-service-manager" "devcontainer-service-managerworkspace" "dcm-setupworkspace")
+    for pkg_name in "${all_package_names[@]}"; do
+        if uv pip uninstall "$pkg_name" --system 2>/dev/null; then
+            echo "   ✅ Uninstalled $pkg_name via uv"
+            uv_uninstalled=true
+            uninstall_success=true
+        fi
+    done
+    
+    if [ "$uv_uninstalled" = false ]; then
+        echo "   ℹ️ No DCM packages found via uv"
     fi
 fi
 
-# Try pip (system)
+# Try pip (system) - both correct and corrupted package names
 if command_exists pip; then
     echo "   Trying pip uninstall..."
-    if pip uninstall devcontainer-service-manager -y 2>/dev/null; then
-        echo "   ✅ Uninstalled via pip"
-        uninstall_success=true
-    else
-        echo "   ℹ️ Not installed via system pip"
+    pip_uninstalled=false
+    
+    for pkg_name in "${all_package_names[@]}"; do
+        if pip uninstall "$pkg_name" -y 2>/dev/null; then
+            echo "   ✅ Uninstalled $pkg_name via pip"
+            pip_uninstalled=true
+            uninstall_success=true
+        fi
+    done
+    
+    if [ "$pip_uninstalled" = false ]; then
+        echo "   ℹ️ No DCM packages found via system pip"
     fi
 fi
 
-# Try pip3 (system)
+# Try pip3 (system) - both correct and corrupted package names
 if command_exists pip3; then
     echo "   Trying pip3 uninstall..."
-    if pip3 uninstall devcontainer-service-manager -y 2>/dev/null; then
-        echo "   ✅ Uninstalled via pip3"
-        uninstall_success=true
-    else
-        echo "   ℹ️ Not installed via system pip3"
+    pip3_uninstalled=false
+    
+    for pkg_name in "${all_package_names[@]}"; do
+        if pip3 uninstall "$pkg_name" -y 2>/dev/null; then
+            echo "   ✅ Uninstalled $pkg_name via pip3"
+            pip3_uninstalled=true
+            uninstall_success=true
+        fi
+    done
+    
+    if [ "$pip3_uninstalled" = false ]; then
+        echo "   ℹ️ No DCM packages found via system pip3"
     fi
 fi
 
-# Try user pip installations
+# Try user pip installations - both correct and corrupted package names
 for python_cmd in python python3; do
     if command_exists "$python_cmd"; then
         echo "   Trying $python_cmd -m pip uninstall (user)..."
-        if "$python_cmd" -m pip uninstall devcontainer-service-manager -y --user 2>/dev/null; then
-            echo "   ✅ Uninstalled user installation via $python_cmd"
-            uninstall_success=true
+        user_uninstalled=false
+        
+        for pkg_name in "${all_package_names[@]}"; do
+            if "$python_cmd" -m pip uninstall "$pkg_name" -y --user 2>/dev/null; then
+                echo "   ✅ Uninstalled $pkg_name user installation via $python_cmd"
+                user_uninstalled=true
+                uninstall_success=true
+            fi
+        done
+        
+        if [ "$user_uninstalled" = false ]; then
+            echo "   ℹ️ No DCM user packages found via $python_cmd"
         fi
     fi
 done
@@ -329,7 +391,9 @@ common_paths=(
 )
 
 for bin_dir in "${common_paths[@]}"; do
-    for cmd in dcm dcm-setup dcm-cache; do
+    # Check both correct and corrupted command names
+    all_commands=("${dcm_commands[@]}" "${corrupted_commands[@]}")
+    for cmd in "${all_commands[@]}"; do
         cmd_path="$bin_dir/$cmd"
         if [ -f "$cmd_path" ]; then
             rm -f "$cmd_path" && echo "   ✅ Removed $cmd_path" || echo "   ⚠️ Failed to remove $cmd_path"
@@ -383,15 +447,25 @@ validation_passed=true
 issues=()
 
 echo "📋 Command availability:"
-for cmd in dcm dcm-setup dcm-cache; do
+commands_remaining=0
+# Check both correct and corrupted command names
+all_commands=("${dcm_commands[@]}" "${corrupted_commands[@]}")
+for cmd in "${all_commands[@]}"; do
     if command_exists "$cmd"; then
         echo "   ❌ $cmd is still available"
         issues+=("Command $cmd still available")
         validation_passed=false
+        commands_remaining=$((commands_remaining + 1))
     else
-        echo "   ✅ $cmd successfully removed"
+        echo "   ✅ $cmd successfully removed (or was not present)"
     fi
 done
+
+if [ $commands_remaining -eq 0 ]; then
+    echo "   ✅ All DCM commands (correct and corrupted variants) successfully removed"
+else
+    echo "   ❌ $commands_remaining DCM commands still present"
+fi
 
 echo
 echo "📋 Docker resources:"
