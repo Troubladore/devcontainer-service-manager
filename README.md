@@ -1,6 +1,6 @@
 # DevContainer Service Manager
 
-A service orchestration tool for DevContainer-based development environments that addresses common challenges we've observed in multi-project data engineering workflows.
+A service orchestration tool for DevContainer-based development environments that addresses common challenges in multi-project data engineering workflows.
 
 ## What It Does
 
@@ -10,9 +10,9 @@ A service orchestration tool for DevContainer-based development environments tha
 
 ## The Use Case
 
-In our experience, data engineering projects often require multiple long-running services. Teams frequently encounter port conflicts when switching between projects, duplicate resource usage, and rebuild cycles that can interrupt development flow.
+Data engineering projects often require multiple long-running services. Teams frequently encounter port conflicts when switching between projects, duplicate resource usage, and rebuild cycles that interrupt development flow.
 
-This tool offers a coordination layer that can help with these challenges. Build performance improvements vary by project structure, but we've seen substantial reductions in build times when cache hits are effective.
+This tool provides a coordination layer that addresses these challenges. Build performance improvements vary by project structure, but substantial reductions in build times are achievable when cache hits are effective.
 
 ## Quick Start
 
