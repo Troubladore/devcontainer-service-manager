@@ -1,0 +1,190 @@
+# Windows Authentication enabled Airflow template
+# Extends base airflow template with LDAP/AD and Kerberos support
+
+# Support both custom builds and pre-built images
+image: "docker.io/apache/airflow:{{version}}-python3.12"
+
+# Custom build configuration for Windows auth packages
+build:
+  dockerfile: "{{dockerfile|default('Dockerfile.airflow')}}"
+  context: "{{build_context|default('.')}}"
+  target: "{{build_target|default('development')}}"
+  args:
+    AIRFLOW_VERSION: "{{version}}"
+    ENABLE_WINDOWS_AUTH: "{{enable_windows_auth|default('true')}}"
+    PYTHON_VERSION: "{{python_version|default('3.12')}}"
+  cache_from:
+    - "airflow:{{version}}"
+    - "python:{{python_version|default('3.12')}}"
+
+container_name: "{{namespace}}_airflow_{{component|default('webserver')}}"
+
+environment:
+  # Standard Airflow configuration
+  AIRFLOW__CORE__EXECUTOR: "{{executor|default('LocalExecutor')}}"
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://{{db_user|default('airflow')}}:{{db_password|default('airflow')}}@{{namespace}}_postgres:5432/{{db_name|default('airflow')}}"
+  AIRFLOW__CORE__FERNET_KEY: "{{fernet_key}}"
+  AIRFLOW__CORE__LOAD_EXAMPLES: "{{load_examples|default('False')}}"
+
+  # Windows Authentication Configuration
+  AIRFLOW__WEBSERVER__AUTHENTICATE: "{{auth_enabled|default('True')}}"
+  AIRFLOW__WEBSERVER__AUTH_BACKEND: "{{auth_backend|default('airflow.contrib.auth.backends.ldap_auth')}}"
+  AIRFLOW__API__AUTH_BACKENDS: "{{api_auth_backend|default('airflow.auth.backends.ldap_auth,airflow.api.auth.backend.basic_auth')}}"
+
+  # LDAP/Active Directory Integration
+  AIRFLOW__LDAP__URI: "{{ldap_uri}}"
+  AIRFLOW__LDAP__USER_FILTER: "{{ldap_user_filter|default('objectClass=person')}}"
+  AIRFLOW__LDAP__USER_NAME_ATTR: "{{ldap_user_name_attr|default('sAMAccountName')}}"
+  AIRFLOW__LDAP__GROUP_MEMBER_ATTR: "{{ldap_group_member_attr|default('member')}}"
+  AIRFLOW__LDAP__SUPERUSER_FILTER: "{{ldap_superuser_filter}}"
+  AIRFLOW__LDAP__DATA_PROFILER_FILTER: "{{ldap_data_profiler_filter}}"
+  AIRFLOW__LDAP__BIND_USER: "{{ldap_bind_user}}"
+  AIRFLOW__LDAP__BIND_PASSWORD: "{{ldap_bind_password}}"
+  AIRFLOW__LDAP__BASEDN: "{{ldap_basedn}}"
+  AIRFLOW__LDAP__CACERT: "{{ldap_cacert|default('/etc/ssl/certs/ca-certificates.crt')}}"
+  AIRFLOW__LDAP__SEARCH_SCOPE: "{{ldap_search_scope|default('SUBTREE')}}"
+
+  # Kerberos Configuration
+  AIRFLOW__KERBEROS__CCACHE: "{{kerberos_ccache|default('/tmp/airflow_krb5_ccache')}}"
+  AIRFLOW__KERBEROS__PRINCIPAL: "{{kerberos_principal}}"
+  AIRFLOW__KERBEROS__REINIT_FREQUENCY: "{{kerberos_reinit|default('3600')}}"
+  AIRFLOW__KERBEROS__KINIT_PATH: "{{kinit_path|default('kinit')}}"
+  AIRFLOW__KERBEROS__KEYTAB: "{{kerberos_keytab}}"
+
+  # Kerberos Environment Variables
+  KRB5_CONFIG: "{{krb5_config|default('/etc/krb5.conf')}}"
+  KRB5CCNAME: "{{krb5ccname|default('FILE:/tmp/airflow_krb5_ccache')}}"
+
+  # Additional Windows Auth Environment
+  _PIP_ADDITIONAL_REQUIREMENTS: "{{additional_requirements|default('apache-airflow-providers-postgres psycopg2-binary apache-airflow[ldap,kerberos] python-ldap python-kerberos')}}"
+
+ports:
+  # Only webserver exposes ports
+  "8080": "auto"  # Webserver UI (only for webserver component)
+
+volumes:
+  # Standard Airflow volumes
+  - "{{dags_path|default('../dags')}}:/opt/airflow/dags:cached"
+  - "{{plugins_path|default('../airflow/plugins')}}:/opt/airflow/plugins:cached"
+  - "{{namespace}}_airflow_logs:/opt/airflow/logs"
+
+  # Windows Authentication volumes
+  - "{{krb5_config_path|default('/etc/krb5.conf')}}:/etc/krb5.conf:ro"
+  - "{{kerberos_keytab_path}}:{{kerberos_keytab|default('/opt/airflow/kerberos.keytab')}}:ro"
+  - "{{ldap_cacert_path}}:/etc/ssl/certs/ldap-ca.crt:ro"
+
+  # Kerberos ticket cache (conditional)
+  - "{{host_krb5_cache|default('/tmp/krb5cc_*')}}:/tmp/airflow_krb5_ccache:rw"
+
+depends_on:
+  - postgres
+
+user: "50000:0"
+
+# Windows auth specific health checks
+healthcheck:
+  test:
+    - "CMD-SHELL"
+    - "airflow info || exit 1"
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 30s
+
+labels:
+  devcontainer-service-manager.namespace: "{{namespace}}"
+  devcontainer-service-manager.service: "airflow-{{component|default('webserver')}}"
+  devcontainer-service-manager.template: "airflow-windows:{{version}}"
+  devcontainer-service-manager.project: "{{project}}"
+  devcontainer-service-manager.branch: "{{branch}}"
+  devcontainer-service-manager.windows-auth: "enabled"
+
+restart: unless-stopped
+
+# Component-specific configurations with Windows auth support
+components:
+  webserver:
+    command: ["airflow", "webserver"]
+    ports:
+      "8080": "auto"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+    environment:
+      # Webserver-specific Windows auth settings
+      AIRFLOW__WEBSERVER__RBAC: "True"
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "{{expose_config|default('False')}}"
+
+  scheduler:
+    command: ["airflow", "scheduler"]
+    ports: {}  # Scheduler doesn't expose ports
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'airflow scheduler' || exit 1"]
+    environment:
+      # Scheduler can use Kerberos for database connections
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: "{{scheduler_db_conn}}"
+
+  init:
+    command:
+      - "bash"
+      - "-c"
+      - |
+        # Initialize database and create admin user
+        airflow db upgrade && \
+        airflow users create \
+          --username $${_AIRFLOW_WWW_USER_USERNAME:-admin} \
+          --password $${_AIRFLOW_WWW_USER_PASSWORD:-admin} \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com || true
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      _AIRFLOW_WWW_USER_USERNAME: "{{web_user|default('admin')}}"
+      _AIRFLOW_WWW_USER_PASSWORD: "{{web_password|default('admin')}}"
+
+# Windows authentication specific network configuration
+networks:
+  windows_auth:
+    driver: bridge
+    enable_ipv6: false
+    ipam:
+      config:
+        - subnet: "{{auth_subnet|default('172.20.0.0/16')}}"
+
+# Service-specific metadata
+metadata:
+  description: "Apache Airflow with Windows Authentication (LDAP/Kerberos)"
+  windows_auth_enabled: true
+  components:
+    - webserver
+    - scheduler
+    - init
+  ports:
+    8080: "Airflow web UI with Windows authentication"
+  volumes:
+    dags: "Airflow DAGs directory"
+    plugins: "Airflow plugins directory"
+    logs: "Airflow logs directory"
+    krb5_config: "Kerberos configuration file"
+    keytab: "Kerberos keytab for service account"
+    ldap_cert: "LDAP server certificate"
+  environment_variables:
+    # Standard Airflow
+    AIRFLOW__CORE__EXECUTOR: "Airflow executor type"
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "Database connection string"
+    AIRFLOW__CORE__FERNET_KEY: "Encryption key for passwords"
+    # Windows Authentication
+    AIRFLOW__LDAP__URI: "LDAP server URI (ldaps://domain-controller:636)"
+    AIRFLOW__LDAP__USER_FILTER: "LDAP user filter for authentication"
+    AIRFLOW__LDAP__SUPERUSER_FILTER: "LDAP filter for admin users"
+    AIRFLOW__KERBEROS__PRINCIPAL: "Kerberos service principal"
+    AIRFLOW__KERBEROS__KEYTAB: "Path to Kerberos keytab file"
+  required_volumes:
+    - krb5_config_path: "Path to host krb5.conf file"
+    - kerberos_keytab_path: "Path to host Kerberos keytab file"
+  required_environment:
+    - ldap_uri: "LDAP server connection string"
+    - kerberos_principal: "Kerberos service principal name"
