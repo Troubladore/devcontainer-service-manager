@@ -6,7 +6,7 @@ ports:
   range_size: 100
   max_port: 65000
 
-# Health monitoring settings  
+# Health monitoring settings
 health_monitor:
   check_interval: 30  # seconds
   auto_repair: false
@@ -28,7 +28,7 @@ namespaces:
 # Docker settings
 docker:
   network_driver: "bridge"
-  volume_driver: "local" 
+  volume_driver: "local"
   label_prefix: "devcontainer-service-manager"
 
 # Template settings

@@ -50,13 +50,13 @@ components:
       "8080": "auto"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
-  
+
   scheduler:
     command: ["airflow", "scheduler"]
     ports: {}  # Scheduler doesn't expose ports
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f 'airflow scheduler' || exit 1"]
-  
+
   init:
     command: ["bash", "-c", "airflow db upgrade && airflow users create --username $AIRFLOW_WWW_USER_USERNAME --password $AIRFLOW_WWW_USER_PASSWORD --firstname Admin --lastname User --role Admin --email admin@example.com || true"]
     restart: "no"
@@ -64,7 +64,7 @@ components:
       postgres:
         condition: service_healthy
 
-# Service-specific metadata  
+# Service-specific metadata
 metadata:
   description: "Apache Airflow workflow orchestration"
   components:

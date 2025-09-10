@@ -21,7 +21,7 @@ healthcheck:
 
 labels:
   devcontainer-service-manager.namespace: "{{namespace}}"
-  devcontainer-service-manager.service: "redis" 
+  devcontainer-service-manager.service: "redis"
   devcontainer-service-manager.template: "redis:{{version|default('7-alpine')}}"
   devcontainer-service-manager.project: "{{project}}"
   devcontainer-service-manager.branch: "{{branch}}"

@@ -1,108 +1,40 @@
 # DevContainer Service Manager
 
-Intelligent service management for DevContainers with automatic conflict detection, port allocation, and service reuse across projects and branches.
+A service orchestration tool for DevContainer-based development environments that addresses common challenges in multi-project data engineering workflows.
 
-## Features
+## What It Does
 
-- **Conflict-Free Startup**: Automatic port conflict detection and resolution
-- **Service Reuse**: Share services across projects and branches to eliminate startup churn
-- **Namespace Isolation**: Project+branch namespacing prevents service interference
-- **Health Monitoring**: Continuous health checks with automatic service recovery
-- **Template System**: Extensible service templates for common development stacks
-- **CLI Management**: Simple command-line interface for service lifecycle management
+- **Service Coordination** - Manages shared services like PostgreSQL, Redis, and Kafka across projects, handling port conflicts and enabling service reuse
+- **Build Optimization** - Implements fingerprint-based Docker layer caching that can significantly reduce build times, particularly for teams working across multiple repositories
+- **Environment Setup** - Provides workstation optimization for WSL2 and development toolchain configuration
+
+## The Use Case
+
+Data engineering projects often require multiple long-running services. Teams frequently encounter port conflicts when switching between projects, duplicate resource usage, and rebuild cycles that interrupt development flow.
+
+This tool provides a coordination layer that addresses these challenges. Build performance improvements vary by project structure, but substantial reductions in build times are achievable when cache hits are effective.
 
 ## Quick Start
 
-### Installation
-
 ```bash
-pip install devcontainer-service-manager
+# Install and optimize your workstation
+pipx install devcontainer-service-manager[workstation]
+pipx ensurepath && source ~/.bashrc
+
+# One-time setup
+dcm-setup install --profile data-engineering
+dcm-setup validate
+
+# In your project directory
+cd /path/to/your/project
+dcm up
 ```
 
-### Basic Usage
+## Documentation
 
-```bash
-# Start services for current project
-dcm up --config .devcontainer/services.yaml
+- [User Guide](docs/user-guide.md) - Core concepts and workflows
+- [Installation Guide](docs/installation.md) - Setup and configuration
+- [Optimization Guide](docs/optimization-guide.md) - Performance tuning for WSL2 and Docker
+- [System Architecture](docs/architecture.md) - Technical implementation details
 
-# Check service status
-dcm status
-
-# Stop services for current project
-dcm down
-
-# Clean up unused services
-dcm clean --unused
-```
-
-### Project Configuration
-
-Create `.devcontainer/services.yaml` in your project:
-
-```yaml
-namespace: "my-project"
-port_range: "auto"
-
-services:
-  postgres:
-    template: "postgres:16"
-    persistent: true
-    health_check: true
-  
-  airflow:
-    template: "airflow:2.9.3"
-    depends_on: ["postgres"]
-    persistent: true
-    ports: ["webserver:8080"]
-```
-
-Update `.devcontainer/devcontainer.json`:
-
-```json
-{
-  "name": "My DevContainer",
-  "initializeCommand": "dcm up --config .devcontainer/services.yaml",
-  "shutdownAction": "dcm suspend --namespace my-project"
-}
-```
-
-## Architecture
-
-The service manager uses a namespace-based architecture where each project+branch combination gets its own isolated service pool:
-
-- **Namespaces**: `{project}_{branch}` format ensures clean isolation
-- **Port Ranges**: Automatic allocation of non-conflicting port ranges per namespace
-- **Service Templates**: Reusable, parameterized service definitions
-- **Health Monitoring**: Background monitoring with automatic restart of failed services
-
-## Service Templates
-
-Built-in templates include:
-
-- **postgres**: PostgreSQL with configurable version and persistence
-- **airflow**: Apache Airflow with scheduler and webserver
-- **redis**: Redis for caching and session storage
-- **mysql**: MySQL with configurable version and schemas
-
-Custom templates can be added in `~/.devcontainer-services/templates/`.
-
-## CLI Commands
-
-```bash
-dcm up [--config FILE]              # Start services
-dcm down [--namespace NS]           # Stop services  
-dcm status [--all]                  # Show service status
-dcm clean [--unused] [--force]      # Clean up services
-dcm health [--namespace NS]         # Check service health
-dcm repair --service SERVICE        # Repair unhealthy service
-dcm template list                   # List available templates
-dcm namespace list                  # List active namespaces
-```
-
-## Contributing
-
-Contributions welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
+[Complete documentation index](docs/index.md)

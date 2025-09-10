@@ -38,5 +38,5 @@ metadata:
     postgres_data: "PostgreSQL data directory"
   environment_variables:
     POSTGRES_DB: "Database name"
-    POSTGRES_USER: "Database username" 
+    POSTGRES_USER: "Database username"
     POSTGRES_PASSWORD: "Database password"

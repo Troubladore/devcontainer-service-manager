@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "devcontainer-service-manager"
 version = "0.1.0"
-description = "Intelligent service management for DevContainers with conflict detection and reuse"
+description = "Development environment optimization: service orchestration, Docker caching, and workstation setup"
 authors = [
     {name = "DevContainer Service Manager", email = "noreply@example.com"}
 ]
@@ -18,7 +18,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11", 
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Build Tools",
     "Topic :: System :: Systems Administration",
@@ -45,9 +45,15 @@ dev = [
     "mypy>=1.5.0",
     "coverage>=7.0.0",
 ]
+workstation = [
+    "rich>=13.0.0",
+    "click>=8.0.0",
+]
 
 [project.scripts]
 dcm = "devcontainer_services.cli:main"
+dcm-cache = "devcontainer_services.caching.cli:main"
+dcm-setup = "devcontainer_services.workstation.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/devcontainer-service-manager/devcontainer-service-manager"
@@ -64,6 +70,8 @@ target-version = ['py310']
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+
+[tool.ruff.lint]
 select = [
     "E",  # pycodestyle errors
     "W",  # pycodestyle warnings
