@@ -10,11 +10,11 @@ Key Features:
 - WSL2 performance optimization
 """
 
-from .fingerprint import DockerFingerprinter, CrossRepoCacheManager
 from .cleanup import TestCleanupManager
+from .fingerprint import CrossRepoCacheManager, DockerFingerprinter
 
 __all__ = [
     "DockerFingerprinter",
-    "CrossRepoCacheManager", 
+    "CrossRepoCacheManager",
     "TestCleanupManager",
 ]

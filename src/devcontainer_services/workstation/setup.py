@@ -6,21 +6,20 @@ Provides automated setup and optimization for development environments,
 with special focus on WSL2, Docker performance, and cross-repository caching.
 """
 
-import subprocess
-import platform
-import logging
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 import json
+import logging
+import platform
+import subprocess
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
 class WorkstationOptimizer:
     """Optimizes development workstation for data engineering workflows."""
-    
+
     _instance_count = 0
-    
+
     def __init__(self, debug_mode=False):
         WorkstationOptimizer._instance_count += 1
         self.instance_id = WorkstationOptimizer._instance_count
@@ -28,32 +27,35 @@ class WorkstationOptimizer:
         self._wsl_detection_result = None  # Cache WSL detection to avoid duplicate debug output
         if debug_mode:
             import traceback
-            print(f"DEBUG: WorkstationOptimizer instance #{self.instance_id} created with debug_mode=True")
+
+            print(
+                f"DEBUG: WorkstationOptimizer instance #{self.instance_id} created with debug_mode=True"
+            )
             print("DEBUG: Call stack:")
             for line in traceback.format_stack()[-3:]:
                 print(f"DEBUG:   {line.strip()}")
         self.system_info = self._detect_system_info()
-        
-    def _detect_system_info(self) -> Dict[str, str]:
+
+    def _detect_system_info(self) -> dict[str, str]:
         """Detect system information and environment."""
         info = {
             "platform": platform.system(),
             "machine": platform.machine(),
             "python_version": platform.python_version(),
             "is_wsl": self._is_wsl(),
-            "docker_available": self._check_docker_available()
+            "docker_available": self._check_docker_available(),
         }
-        
+
         if info["is_wsl"]:
             info["wsl_version"] = self._get_wsl_version()
             info["windows_build"] = self._get_windows_build()
-        
+
         return info
-    
+
     def _debug_print(self, message):
         """Print debug message if debug mode is enabled."""
         if self.debug_mode:
-            instance_id = getattr(self, 'instance_id', '?')
+            instance_id = getattr(self, "instance_id", "?")
             print(f"DEBUG[#{instance_id}]: {message}")
         else:
             logger.debug(message)
@@ -64,30 +66,34 @@ class WorkstationOptimizer:
         if self._wsl_detection_result is not None:
             self._debug_print(f"🎯 Using cached WSL detection result: {self._wsl_detection_result}")
             return self._wsl_detection_result
-            
+
         import os
-        
+
         self._debug_print("🔍 Starting WSL2 detection using 6 different methods...")
-        
+
         # Method 1: Check /proc/version for Microsoft/WSL indicators
         self._debug_print("Method 1: Checking /proc/version for Microsoft/WSL indicators")
         try:
-            with open('/proc/version', 'r') as f:
+            with open("/proc/version") as f:
                 content = f.read().lower()
                 self._debug_print(f"  /proc/version content: {content.strip()}")
-                if 'microsoft' in content or 'wsl' in content:
-                    self._debug_print("✅ WSL detected via /proc/version - found Microsoft/WSL indicators")
+                if "microsoft" in content or "wsl" in content:
+                    self._debug_print(
+                        "✅ WSL detected via /proc/version - found Microsoft/WSL indicators"
+                    )
                     self._wsl_detection_result = True
                     return True
                 else:
-                    self._debug_print("❌ Method 1 failed: No Microsoft/WSL indicators in /proc/version")
+                    self._debug_print(
+                        "❌ Method 1 failed: No Microsoft/WSL indicators in /proc/version"
+                    )
         except Exception as e:
             self._debug_print(f"❌ Method 1 failed: Cannot read /proc/version - {e}")
-        
+
         # Method 2: Check WSL environment variables
         self._debug_print("Method 2: Checking WSL environment variables")
-        wsl_distro = os.environ.get('WSL_DISTRO_NAME')
-        wsl_interop = os.environ.get('WSL_INTEROP')
+        wsl_distro = os.environ.get("WSL_DISTRO_NAME")
+        wsl_interop = os.environ.get("WSL_INTEROP")
         self._debug_print(f"  WSL_DISTRO_NAME: {wsl_distro}")
         self._debug_print(f"  WSL_INTEROP: {wsl_interop}")
         if wsl_distro or wsl_interop:
@@ -96,14 +102,14 @@ class WorkstationOptimizer:
             return True
         else:
             self._debug_print("❌ Method 2 failed: WSL environment variables not found")
-        
+
         # Method 3: Check /proc/sys/kernel/osrelease
         self._debug_print("Method 3: Checking /proc/sys/kernel/osrelease")
         try:
-            with open('/proc/sys/kernel/osrelease', 'r') as f:
+            with open("/proc/sys/kernel/osrelease") as f:
                 content = f.read().lower()
                 self._debug_print(f"  kernel osrelease: {content.strip()}")
-                if 'microsoft' in content or 'wsl' in content:
+                if "microsoft" in content or "wsl" in content:
                     self._debug_print("✅ WSL detected via kernel osrelease")
                     self._wsl_detection_result = True
                     return True
@@ -111,30 +117,34 @@ class WorkstationOptimizer:
                     self._debug_print("❌ Method 3 failed: No Microsoft/WSL in kernel osrelease")
         except Exception as e:
             self._debug_print(f"❌ Method 3 failed: Cannot read kernel osrelease - {e}")
-        
+
         # Method 4: Check for WSL-specific mount points
         self._debug_print("Method 4: Checking for WSL-specific mount points")
         try:
-            result = subprocess.run(['mount'], capture_output=True, text=True, timeout=5)
+            result = subprocess.run(["mount"], capture_output=True, text=True, timeout=5)
             if result.returncode == 0:
                 mount_output = result.stdout.lower()
                 self._debug_print(f"  mount output (first 500 chars): {mount_output[:500]}")
-                if '/mnt/c' in mount_output or '/mnt/wsl' in mount_output:
+                if "/mnt/c" in mount_output or "/mnt/wsl" in mount_output:
                     self._debug_print("✅ WSL detected via mount points - found /mnt/c or /mnt/wsl")
                     self._wsl_detection_result = True
                     return True
                 else:
                     self._debug_print("❌ Method 4 failed: No /mnt/c or /mnt/wsl in mount output")
             else:
-                self._debug_print(f"❌ Method 4 failed: mount command failed with code {result.returncode}")
+                self._debug_print(
+                    f"❌ Method 4 failed: mount command failed with code {result.returncode}"
+                )
         except Exception as e:
             self._debug_print(f"❌ Method 4 failed: mount command error - {e}")
-        
+
         # Method 5: Check if wsl.exe is available (Windows interop)
         self._debug_print("Method 5: Checking if wsl.exe is available via Windows interop")
         try:
-            result = subprocess.run(['which', 'wsl.exe'], capture_output=True, text=True, timeout=5)
-            self._debug_print(f"  which wsl.exe result: returncode={result.returncode}, stdout='{result.stdout.strip()}', stderr='{result.stderr.strip()}'")
+            result = subprocess.run(["which", "wsl.exe"], capture_output=True, text=True, timeout=5)
+            self._debug_print(
+                f"  which wsl.exe result: returncode={result.returncode}, stdout='{result.stdout.strip()}', stderr='{result.stderr.strip()}'"
+            )
             if result.returncode == 0:
                 self._debug_print("✅ WSL detected via wsl.exe availability")
                 self._wsl_detection_result = True
@@ -143,13 +153,14 @@ class WorkstationOptimizer:
                 self._debug_print("❌ Method 5 failed: wsl.exe not found in PATH")
         except Exception as e:
             self._debug_print(f"❌ Method 5 failed: wsl.exe check error - {e}")
-        
+
         # Method 6: Check for Windows-specific directories in /mnt
         self._debug_print("Method 6: Checking for Windows directories in /mnt")
         try:
             from pathlib import Path
-            mnt_c_exists = Path('/mnt/c').exists()
-            mnt_d_exists = Path('/mnt/d').exists()
+
+            mnt_c_exists = Path("/mnt/c").exists()
+            mnt_d_exists = Path("/mnt/d").exists()
             self._debug_print(f"  /mnt/c exists: {mnt_c_exists}")
             self._debug_print(f"  /mnt/d exists: {mnt_d_exists}")
             if mnt_c_exists or mnt_d_exists:
@@ -160,172 +171,192 @@ class WorkstationOptimizer:
                 self._debug_print("❌ Method 6 failed: No Windows mount directories found")
         except Exception as e:
             self._debug_print(f"❌ Method 6 failed: Mount directory check error - {e}")
-        
+
         self._debug_print("🚫 WSL NOT DETECTED: All 6 detection methods failed")
         logger.info("WSL2 detection failed - run with --debug flag for detailed method analysis")
-        
+
         # Cache the result
         self._wsl_detection_result = False
         return False
-    
+
     def _get_wsl_version(self) -> str:
         """Get WSL version using multiple detection methods."""
         self._debug_print("🔍 Determining WSL version using multiple methods...")
-        
+
         # Method 1: Check /proc/version for WSL2-specific indicators
-        self._debug_print("WSL Version Method 1: Checking /proc/version for version-specific indicators")
+        self._debug_print(
+            "WSL Version Method 1: Checking /proc/version for version-specific indicators"
+        )
         try:
-            with open('/proc/version', 'r') as f:
+            with open("/proc/version") as f:
                 content = f.read().lower()
                 self._debug_print(f"  /proc/version content: {content.strip()}")
-                if 'microsoft-standard-wsl2' in content or '-wsl2' in content:
-                    self._debug_print("✅ WSL2 detected via /proc/version - found WSL2-specific indicators")
+                if "microsoft-standard-wsl2" in content or "-wsl2" in content:
+                    self._debug_print(
+                        "✅ WSL2 detected via /proc/version - found WSL2-specific indicators"
+                    )
                     return "2"
-                elif 'microsoft' in content and 'wsl' in content:
-                    self._debug_print("⚠️ WSL detected but could be WSL1 - /proc/version shows generic Microsoft/WSL")
+                elif "microsoft" in content and "wsl" in content:
+                    self._debug_print(
+                        "⚠️ WSL detected but could be WSL1 - /proc/version shows generic Microsoft/WSL"
+                    )
                     # Continue to other methods
                 else:
-                    self._debug_print("❌ WSL Version Method 1 failed: No Microsoft/WSL in /proc/version")
+                    self._debug_print(
+                        "❌ WSL Version Method 1 failed: No Microsoft/WSL in /proc/version"
+                    )
         except Exception as e:
             self._debug_print(f"❌ WSL Version Method 1 failed: Cannot read /proc/version - {e}")
-        
+
         # Method 2: Check for WSL2-specific filesystem features
         self._debug_print("WSL Version Method 2: Checking for WSL2-specific filesystem features")
         try:
             import os
+
             # WSL2 typically has different filesystem layout
-            if os.path.exists('/sys/fs/cgroup/memory/memory.limit_in_bytes'):
+            if os.path.exists("/sys/fs/cgroup/memory/memory.limit_in_bytes"):
                 self._debug_print("✅ WSL2 likely detected - found WSL2-style cgroup filesystem")
                 return "2"
             else:
                 self._debug_print("❌ WSL Version Method 2 failed: WSL2-style filesystem not found")
         except Exception as e:
             self._debug_print(f"❌ WSL Version Method 2 failed: {e}")
-        
+
         # Method 3: Try wsl.exe --status (original method)
         self._debug_print("WSL Version Method 3: Trying wsl.exe --status command")
         try:
-            result = subprocess.run([
-                'wsl.exe', '--status'
-            ], capture_output=True, text=True, timeout=10)
-            
+            result = subprocess.run(
+                ["wsl.exe", "--status"], capture_output=True, text=True, timeout=10
+            )
+
             self._debug_print(f"  wsl.exe --status output: {result.stdout.strip()}")
-            if 'WSL 2' in result.stdout:
+            if "WSL 2" in result.stdout:
                 self._debug_print("✅ WSL2 detected via wsl.exe --status")
                 return "2"
-            elif 'WSL 1' in result.stdout:
-                self._debug_print("✅ WSL1 detected via wsl.exe --status") 
+            elif "WSL 1" in result.stdout:
+                self._debug_print("✅ WSL1 detected via wsl.exe --status")
                 return "1"
             else:
-                self._debug_print("❌ WSL Version Method 3 failed: Cannot determine version from wsl.exe output")
+                self._debug_print(
+                    "❌ WSL Version Method 3 failed: Cannot determine version from wsl.exe output"
+                )
         except Exception as e:
             self._debug_print(f"❌ WSL Version Method 3 failed: Cannot run wsl.exe - {e}")
-        
+
         # Method 4: Check kernel version patterns
         self._debug_print("WSL Version Method 4: Analyzing kernel version patterns")
         try:
-            with open('/proc/version', 'r') as f:
+            with open("/proc/version") as f:
                 content = f.read().lower()
                 # WSL2 typically has newer kernel versions and different patterns
-                if 'microsoft' in content:
+                if "microsoft" in content:
                     import re
+
                     # Look for version patterns that indicate WSL2 (typically 4.x+ kernels)
-                    kernel_match = re.search(r'linux version (\d+)\.(\d+)', content)
+                    kernel_match = re.search(r"linux version (\d+)\.(\d+)", content)
                     if kernel_match:
                         major, minor = int(kernel_match.group(1)), int(kernel_match.group(2))
                         self._debug_print(f"  Detected kernel version: {major}.{minor}")
                         if major >= 4:  # WSL2 typically uses 4.x+ kernels
-                            self._debug_print("✅ WSL2 likely detected - kernel version suggests WSL2")
+                            self._debug_print(
+                                "✅ WSL2 likely detected - kernel version suggests WSL2"
+                            )
                             return "2"
                         else:
-                            self._debug_print("⚠️ WSL1 likely detected - older kernel version suggests WSL1")
+                            self._debug_print(
+                                "⚠️ WSL1 likely detected - older kernel version suggests WSL1"
+                            )
                             return "1"
         except Exception as e:
             self._debug_print(f"❌ WSL Version Method 4 failed: {e}")
-        
+
         self._debug_print("🚫 WSL VERSION UNKNOWN: All 4 version detection methods failed")
         return "unknown"
-    
+
     def _get_windows_build(self) -> str:
         """Get Windows build number from WSL."""
         try:
-            result = subprocess.run([
-                'cmd.exe', '/c', 'ver'
-            ], capture_output=True, text=True, timeout=10)
-            
+            result = subprocess.run(
+                ["cmd.exe", "/c", "ver"], capture_output=True, text=True, timeout=10
+            )
+
             # Extract build number from output
             import re
-            match = re.search(r'\[Version ([\d.]+)\]', result.stdout)
+
+            match = re.search(r"\[Version ([\d.]+)\]", result.stdout)
             if match:
                 return match.group(1)
             return "unknown"
         except:
             return "unknown"
-    
+
     def _check_docker_available(self) -> bool:
         """Check if Docker is available and responding."""
         try:
-            result = subprocess.run([
-                'docker', 'version', '--format', 'json'
-            ], capture_output=True, text=True, timeout=10)
-            
+            result = subprocess.run(
+                ["docker", "version", "--format", "json"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
             return result.returncode == 0
         except:
             return False
-    
-    def get_docker_info(self) -> Dict:
+
+    def get_docker_info(self) -> dict:
         """Get detailed Docker information."""
         try:
-            result = subprocess.run([
-                'docker', 'info', '--format', 'json'
-            ], capture_output=True, text=True, timeout=15)
-            
+            result = subprocess.run(
+                ["docker", "info", "--format", "json"], capture_output=True, text=True, timeout=15
+            )
+
             if result.returncode == 0:
                 return json.loads(result.stdout)
             else:
                 return {"error": result.stderr}
         except Exception as e:
             return {"error": str(e)}
-    
-    def validate_performance_setup(self) -> Dict[str, any]:
+
+    def validate_performance_setup(self) -> dict[str, any]:
         """Validate workstation performance configuration."""
         checks = {}
-        
+
         # Docker checks
         checks["docker"] = self._validate_docker_setup()
-        
+
         # WSL2 specific checks
         if self.system_info["is_wsl"]:
             checks["wsl2"] = self._validate_wsl2_setup()
-        
+
         # File system performance checks
         checks["filesystem"] = self._validate_filesystem_performance()
-        
+
         # Memory and resource checks
         checks["resources"] = self._validate_resource_availability()
-        
+
         return checks
-    
-    def _validate_docker_setup(self) -> Dict[str, any]:
+
+    def _validate_docker_setup(self) -> dict[str, any]:
         """Validate Docker configuration for optimal performance."""
         validation = {
             "available": self.system_info["docker_available"],
             "issues": [],
-            "recommendations": []
+            "recommendations": [],
         }
-        
+
         if not validation["available"]:
             validation["issues"].append("Docker not available or not responding")
             validation["recommendations"].append("Install Docker Desktop or Docker Engine")
             return validation
-        
+
         # Get Docker info
         docker_info = self.get_docker_info()
-        
+
         if "error" in docker_info:
             validation["issues"].append(f"Failed to get Docker info: {docker_info['error']}")
             return validation
-        
+
         # Check BuildKit support (modern approach)
         buildkit_enabled = self._check_buildkit_status()
         if not buildkit_enabled:
@@ -335,7 +366,7 @@ class WorkstationOptimizer:
                 "  📖 Manual: export DOCKER_BUILDKIT=1 (add to ~/.bashrc for persistence)"
             )
             validation["recommendations"].append(buildkit_instructions)
-        
+
         # Check memory allocation (for Docker Desktop)
         if "MemTotal" in docker_info:
             mem_gb = docker_info["MemTotal"] / (1024**3)
@@ -344,36 +375,38 @@ class WorkstationOptimizer:
                     f"Increase Docker memory allocation (currently {mem_gb:.1f}GB, recommend 8GB+):\n"
                     "  Docker Desktop: Settings → Resources → Memory → Set to 8GB\n"
                     "  Docker Machine: docker-machine stop → VirtualBox settings → System → 8GB\n"
-                    "  Linux: Edit /etc/docker/daemon.json: {\"default-runtime\": \"runc\"}\n"
+                    '  Linux: Edit /etc/docker/daemon.json: {"default-runtime": "runc"}\n'
                     "  Then: sudo systemctl restart docker"
                 )
                 validation["recommendations"].append(memory_instructions)
-        
+
         # Check storage driver
         storage_driver = docker_info.get("Driver", "unknown")
         if storage_driver not in ["overlay2", "btrfs"]:
             storage_instructions = (
                 f"Optimize Docker storage driver (currently {storage_driver}, recommend overlay2):\n"
                 "  1. Edit /etc/docker/daemon.json:\n"
-                '     {\"storage-driver\": \"overlay2\"}\n'
+                '     {"storage-driver": "overlay2"}\n'
                 "  2. Restart Docker: sudo systemctl restart docker\n"
                 "  3. Verify: docker info | grep 'Storage Driver'\n"
                 "  Note: This will remove existing containers and images"
             )
             validation["recommendations"].append(storage_instructions)
-        
+
         return validation
-    
-    def _validate_wsl2_setup(self) -> Dict[str, any]:
+
+    def _validate_wsl2_setup(self) -> dict[str, any]:
         """Validate WSL2 configuration for optimal Docker performance."""
         validation = {
             "version": self.system_info.get("wsl_version", "unknown"),
             "issues": [],
-            "recommendations": []
+            "recommendations": [],
         }
-        
+
         if validation["version"] != "2":
-            validation["issues"].append(f"WSL version is {validation['version']}, but WSL 2 recommended")
+            validation["issues"].append(
+                f"WSL version is {validation['version']}, but WSL 2 recommended"
+            )
             wsl2_upgrade_instructions = (
                 "Upgrade to WSL 2 for better Docker performance:\n"
                 "  1. Open PowerShell as Administrator\n"
@@ -384,7 +417,7 @@ class WorkstationOptimizer:
                 "  6. Verify: wsl --list --verbose"
             )
             validation["recommendations"].append(wsl2_upgrade_instructions)
-        
+
         # Check file system location
         cwd = Path.cwd()
         if str(cwd).startswith("/mnt/"):
@@ -395,9 +428,9 @@ class WorkstationOptimizer:
                 "  📖 Manual: mkdir -p ~/repos && cp -r /mnt/c/path/to/repo ~/repos/"
             )
             validation["recommendations"].append(filesystem_migration_instructions)
-        
+
         # Check .wslconfig
-        wslconfig_path = Path.home() / ".wslconfig"
+        Path.home() / ".wslconfig"
         if self.system_info["platform"] == "Linux" and validation["version"] == "2":
             try:
                 # Check if we can access Windows home directory
@@ -413,89 +446,96 @@ class WorkstationOptimizer:
                         validation["recommendations"].append(wslconfig_instructions)
             except:
                 pass
-        
+
         return validation
-    
+
     def _check_buildkit_status(self) -> bool:
         """Check if Docker BuildKit is currently enabled using multiple methods."""
         try:
-            import subprocess
             import os
-            
+            import subprocess
+
             # Method 1: Check DOCKER_BUILDKIT environment variable
             if os.environ.get("DOCKER_BUILDKIT") == "1":
                 self._debug_print("BuildKit enabled via DOCKER_BUILDKIT environment variable")
                 return True
-            
+
             # Method 2: Check if buildx is available and has BuildKit builders
             try:
-                result = subprocess.run(['docker', 'buildx', 'ls'], 
-                                      capture_output=True, text=True, timeout=10)
+                result = subprocess.run(
+                    ["docker", "buildx", "ls"], capture_output=True, text=True, timeout=10
+                )
                 if result.returncode == 0:
                     # Look for running BuildKit instances
-                    lines = result.stdout.strip().split('\n')
+                    lines = result.stdout.strip().split("\n")
                     for line in lines[1:]:  # Skip header
-                        if 'running' in line and ('v0.' in line or 'buildkit' in line.lower()):
+                        if "running" in line and ("v0." in line or "buildkit" in line.lower()):
                             self._debug_print("BuildKit enabled via active buildx builder")
                             return True
             except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
                 pass
-            
+
             # Method 3: Check daemon configuration (for native Docker)
             from pathlib import Path
+
             daemon_paths = [
                 Path.home() / ".docker" / "daemon.json",
-                Path("/etc/docker/daemon.json")
+                Path("/etc/docker/daemon.json"),
             ]
-            
+
             for daemon_path in daemon_paths:
                 if daemon_path.exists():
                     try:
                         import json
-                        with open(daemon_path, 'r') as f:
+
+                        with open(daemon_path) as f:
                             config = json.load(f)
                         if config.get("features", {}).get("buildkit", False):
                             self._debug_print(f"BuildKit enabled via daemon.json: {daemon_path}")
                             return True
                     except (json.JSONDecodeError, PermissionError):
                         continue
-            
+
             # Method 4: Test actual build command (most definitive but slower)
             if self.debug_mode:  # Only do this expensive check in debug mode
                 try:
                     # Create a minimal test Dockerfile in memory and test build
-                    test_result = subprocess.run([
-                        'docker', 'build', '-t', 'dcm-buildkit-test', '-f', '-', '.'
-                    ], input='FROM scratch\nCMD echo test', text=True, 
-                    capture_output=True, timeout=30)
-                    
-                    if test_result.returncode == 0 and 'buildkit' in test_result.stderr.lower():
+                    test_result = subprocess.run(
+                        ["docker", "build", "-t", "dcm-buildkit-test", "-f", "-", "."],
+                        input="FROM scratch\nCMD echo test",
+                        text=True,
+                        capture_output=True,
+                        timeout=30,
+                    )
+
+                    if test_result.returncode == 0 and "buildkit" in test_result.stderr.lower():
                         self._debug_print("BuildKit confirmed via test build")
                         # Clean up test image
-                        subprocess.run(['docker', 'rmi', 'dcm-buildkit-test'], 
-                                     capture_output=True, timeout=10)
+                        subprocess.run(
+                            ["docker", "rmi", "dcm-buildkit-test"], capture_output=True, timeout=10
+                        )
                         return True
                 except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
                     pass
-            
+
             self._debug_print("BuildKit not detected via any method")
             return False
-            
+
         except Exception as e:
             self._debug_print(f"Error checking BuildKit status: {e}")
             return False
-    
-    def _validate_filesystem_performance(self) -> Dict[str, any]:
+
+    def _validate_filesystem_performance(self) -> dict[str, any]:
         """Test file system performance for development workflows."""
         validation = {
             "location": str(Path.cwd()),
             "performance_tier": "unknown",
             "issues": [],
-            "recommendations": []
+            "recommendations": [],
         }
-        
+
         cwd = Path.cwd()
-        
+
         if str(cwd).startswith("/mnt/"):
             validation["performance_tier"] = "slow"
             validation["issues"].append("Working in cross-filesystem mount (Windows to WSL)")
@@ -513,35 +553,32 @@ class WorkstationOptimizer:
             validation["performance_tier"] = "fast"
         else:
             validation["performance_tier"] = "native"
-        
+
         return validation
-    
-    def _validate_resource_availability(self) -> Dict[str, any]:
+
+    def _validate_resource_availability(self) -> dict[str, any]:
         """Check available system resources."""
-        validation = {
-            "issues": [],
-            "recommendations": []
-        }
-        
+        validation = {"issues": [], "recommendations": []}
+
         try:
             # Check available disk space
-            result = subprocess.run([
-                "df", "-h", "."
-            ], capture_output=True, text=True)
-            
+            result = subprocess.run(["df", "-h", "."], capture_output=True, text=True)
+
             if result.returncode == 0:
-                lines = result.stdout.strip().split('\n')
+                lines = result.stdout.strip().split("\n")
                 if len(lines) >= 2:
                     fields = lines[1].split()
                     if len(fields) >= 4:
                         available = fields[3]
                         validation["disk_available"] = available
-                        
+
                         # Parse available space (rough check)
                         if available.endswith("G"):
                             gb_available = float(available[:-1])
                             if gb_available < 20:
-                                validation["issues"].append(f"Low disk space: {available} available")
+                                validation["issues"].append(
+                                    f"Low disk space: {available} available"
+                                )
                                 disk_cleanup_instructions = (
                                     f"Free up disk space ({available} available, recommend 50GB+):\n"
                                     "  🚀 Easy: dcm-setup optimize --disk-cleanup\n"
@@ -550,23 +587,23 @@ class WorkstationOptimizer:
                                 validation["recommendations"].append(disk_cleanup_instructions)
         except:
             pass
-        
+
         return validation
-    
+
     def optimize_wsl2_performance(self) -> bool:
         """Apply WSL2 performance optimizations."""
         if not self.system_info["is_wsl"] or self.system_info.get("wsl_version") != "2":
             logger.warning("WSL2 optimizations only apply to WSL2 environments")
             return False
-        
+
         logger.info("🚀 Applying WSL2 performance optimizations...")
-        
+
         optimizations = [
             self._optimize_git_config,
             self._optimize_shell_config,
-            self._create_wslconfig_recommendations
+            self._create_wslconfig_recommendations,
         ]
-        
+
         success = True
         for optimization in optimizations:
             try:
@@ -574,29 +611,29 @@ class WorkstationOptimizer:
             except Exception as e:
                 logger.error(f"Optimization failed: {e}")
                 success = False
-        
+
         return success
-    
+
     def _optimize_git_config(self):
         """Optimize Git configuration for WSL2."""
         git_configs = [
             ("core.autocrlf", "input"),
             ("core.filemode", "false"),
-            ("credential.helper", "store")
+            ("credential.helper", "store"),
         ]
-        
+
         for key, value in git_configs:
             try:
-                subprocess.run([
-                    "git", "config", "--global", key, value
-                ], check=True, capture_output=True)
+                subprocess.run(
+                    ["git", "config", "--global", key, value], check=True, capture_output=True
+                )
                 logger.debug(f"Set git config: {key}={value}")
             except subprocess.CalledProcessError:
                 logger.warning(f"Failed to set git config: {key}={value}")
-    
+
     def _optimize_shell_config(self):
         """Add helpful aliases and environment variables."""
-        shell_additions = '''
+        shell_additions = """
 # Data Engineering Development Optimizations
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
@@ -605,8 +642,8 @@ export COMPOSE_DOCKER_CLI_BUILD=1
 alias dcm-status="dcm status && dcm-cache status"
 alias docker-cleanup="docker system prune -f && docker volume prune -f"
 alias ws-check="dcm-setup validate"
-'''
-        
+"""
+
         bashrc_path = Path.home() / ".bashrc"
         if bashrc_path.exists():
             content = bashrc_path.read_text()
@@ -614,125 +651,121 @@ alias ws-check="dcm-setup validate"
                 with open(bashrc_path, "a") as f:
                     f.write(shell_additions)
                 logger.info("✅ Added development aliases to .bashrc")
-    
+
     def _create_wslconfig_recommendations(self):
         """Generate .wslconfig recommendations."""
         if not self.system_info["is_wsl"]:
             return
-        
+
         wslconfig_content = """# WSL2 Performance Optimization for Data Engineering
 [wsl2]
 # Memory allocation (adjust based on your system)
 memory=8GB
-# Processor count (adjust based on your system)  
+# Processor count (adjust based on your system)
 processors=4
 # Swap space
 swap=2GB
 # Disable page reporting (can improve performance)
 pageReporting=false
 """
-        
+
         logger.info("💡 Consider creating C:\\Users\\<username>\\.wslconfig with:")
-        for line in wslconfig_content.split('\n'):
+        for line in wslconfig_content.split("\n"):
             if line.strip():
                 logger.info(f"   {line}")
 
     def apply_docker_buildkit_optimization(self, dry_run=False) -> bool:
         """Apply Docker BuildKit optimization automatically with multiple persistence methods."""
         if dry_run:
-            self._debug_print("DRY RUN: Would enable Docker BuildKit via daemon.json and shell profile")
+            self._debug_print(
+                "DRY RUN: Would enable Docker BuildKit via daemon.json and shell profile"
+            )
             return True
-            
+
         try:
             import os
-            import json
-            from pathlib import Path
-            
+
             # Method 1: Configure Docker daemon.json (most reliable)
             success_daemon = self._configure_docker_daemon_buildkit()
-            
+
             # Method 2: Configure shell profile (for CLI usage)
             success_shell = self._configure_shell_profile_buildkit()
-            
+
             # Set for current session
             os.environ["DOCKER_BUILDKIT"] = "1"
             os.environ["COMPOSE_DOCKER_CLI_BUILD"] = "1"
-            
+
             if success_daemon or success_shell:
                 self._debug_print("Docker BuildKit configured via daemon and/or shell profile")
                 return True
             else:
                 logger.error("Failed to configure Docker BuildKit via any method")
                 return False
-                
+
         except Exception as e:
             logger.error(f"Failed to apply Docker BuildKit optimization: {e}")
             return False
-    
+
     def _configure_docker_daemon_buildkit(self) -> bool:
         """Configure Docker daemon for persistent BuildKit (handles Docker Desktop)."""
         try:
-            import json
-            import subprocess
-            from pathlib import Path
-            
             # Detect Docker Desktop vs native Docker
             is_docker_desktop = self._detect_docker_desktop()
-            
+
             if is_docker_desktop:
                 self._debug_print("Docker Desktop detected - using environment variable approach")
                 return self._configure_docker_desktop_buildkit()
             else:
                 self._debug_print("Native Docker detected - using daemon.json approach")
                 return self._configure_native_docker_buildkit()
-                
+
         except Exception as e:
             self._debug_print(f"Failed to configure Docker daemon: {e}")
             return False
-    
+
     def _detect_docker_desktop(self) -> bool:
         """Detect if we're using Docker Desktop vs native Docker."""
         try:
             import subprocess
-            
+
             # Method 1: Check docker context
-            result = subprocess.run(['docker', 'context', 'show'], 
-                                  capture_output=True, text=True, timeout=5)
+            result = subprocess.run(
+                ["docker", "context", "show"], capture_output=True, text=True, timeout=5
+            )
             if result.returncode == 0:
                 context = result.stdout.strip()
-                if 'desktop' in context.lower():
+                if "desktop" in context.lower():
                     self._debug_print(f"Docker Desktop context detected: {context}")
                     return True
-            
+
             # Method 2: Check docker info for Docker Desktop indicators
-            result = subprocess.run(['docker', 'info'], 
-                                  capture_output=True, text=True, timeout=10)
+            result = subprocess.run(["docker", "info"], capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 info = result.stdout.lower()
-                desktop_indicators = ['docker desktop', 'wsl2', 'windows']
+                desktop_indicators = ["docker desktop", "wsl2", "windows"]
                 if any(indicator in info for indicator in desktop_indicators):
                     self._debug_print("Docker Desktop indicators found in docker info")
                     return True
-            
+
             # Method 3: Check if we're in WSL and Docker is available
-            if self.system_info.get('is_wsl') and self.system_info.get('docker_available'):
+            if self.system_info.get("is_wsl") and self.system_info.get("docker_available"):
                 self._debug_print("WSL + Docker available suggests Docker Desktop integration")
                 return True
-            
+
             return False
-            
+
         except Exception as e:
             self._debug_print(f"Failed to detect Docker Desktop: {e}")
             # Default to Docker Desktop detection if in WSL
-            return self.system_info.get('is_wsl', False)
-    
+            return self.system_info.get("is_wsl", False)
+
     def _configure_docker_desktop_buildkit(self) -> bool:
         """Configure BuildKit for Docker Desktop (environment variable approach)."""
         try:
             # For Docker Desktop, environment variables are the most reliable approach
             # since the daemon is managed by Docker Desktop on the host
             self._debug_print("Using environment variable approach for Docker Desktop")
-            
+
             # Try to set BuildKit as default builder using buildx
             result = self._setup_buildx_default_builder()
             if result:
@@ -741,172 +774,184 @@ pageReporting=false
             else:
                 self._debug_print("Buildx configuration failed, relying on environment variables")
                 return True  # Environment variables will still work
-                
+
         except Exception as e:
             self._debug_print(f"Failed to configure Docker Desktop BuildKit: {e}")
             return False
-    
+
     def _configure_native_docker_buildkit(self) -> bool:
         """Configure BuildKit for native Docker using daemon.json."""
         try:
             import json
             from pathlib import Path
-            
+
             # Possible daemon.json locations
             daemon_paths = [
-                Path("/etc/docker/daemon.json"),        # System-wide
-                Path.home() / ".docker" / "daemon.json" # User-specific
+                Path("/etc/docker/daemon.json"),  # System-wide
+                Path.home() / ".docker" / "daemon.json",  # User-specific
             ]
-            
+
             # Try user-specific first (more reliable for non-root users)
             daemon_path = daemon_paths[1]
             daemon_path.parent.mkdir(exist_ok=True)
-            
+
             # Read existing config or start with empty
             if daemon_path.exists():
                 try:
-                    with open(daemon_path, 'r') as f:
+                    with open(daemon_path) as f:
                         config = json.load(f)
                 except json.JSONDecodeError:
                     config = {}
             else:
                 config = {}
-            
+
             # Check if already configured
             if config.get("features", {}).get("buildkit", False):
                 self._debug_print("Docker daemon already configured for BuildKit")
                 return True
-            
+
             # Add BuildKit configuration
             if "features" not in config:
                 config["features"] = {}
             config["features"]["buildkit"] = True
-            
+
             # Add comment to track our changes
             config["_dcm_comment"] = "BuildKit enabled by dcm-setup"
-            
+
             # Write updated config
-            with open(daemon_path, 'w') as f:
+            with open(daemon_path, "w") as f:
                 json.dump(config, f, indent=2)
-            
+
             self._debug_print(f"Docker BuildKit configured in {daemon_path}")
             logger.info("💡 Docker daemon restart required for BuildKit to take effect")
             return True
-            
+
         except PermissionError:
-            self._debug_print("Permission denied for daemon.json - falling back to environment variables")
+            self._debug_print(
+                "Permission denied for daemon.json - falling back to environment variables"
+            )
             return False
         except Exception as e:
             self._debug_print(f"Failed to configure native Docker: {e}")
             return False
-    
+
     def _setup_buildx_default_builder(self) -> bool:
         """Set up buildx with BuildKit as default builder."""
         try:
             import subprocess
-            
+
             # Check if buildx is available
-            result = subprocess.run(['docker', 'buildx', 'version'], 
-                                  capture_output=True, text=True, timeout=5)
+            result = subprocess.run(
+                ["docker", "buildx", "version"], capture_output=True, text=True, timeout=5
+            )
             if result.returncode != 0:
                 self._debug_print("Docker buildx not available")
                 return False
-            
+
             # Create or use existing buildx builder with BuildKit
-            result = subprocess.run(['docker', 'buildx', 'create', '--name', 'dcm-builder', '--use'], 
-                                  capture_output=True, text=True, timeout=10)
+            result = subprocess.run(
+                ["docker", "buildx", "create", "--name", "dcm-builder", "--use"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
             if result.returncode == 0:
                 self._debug_print("Created and activated dcm-builder buildx instance")
                 return True
-            elif 'already exists' in result.stderr:
+            elif "already exists" in result.stderr:
                 # Builder already exists, just use it
-                result = subprocess.run(['docker', 'buildx', 'use', 'dcm-builder'], 
-                                      capture_output=True, text=True, timeout=5)
+                result = subprocess.run(
+                    ["docker", "buildx", "use", "dcm-builder"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
                 if result.returncode == 0:
                     self._debug_print("Activated existing dcm-builder buildx instance")
                     return True
-            
+
             # Fallback: use default builder
-            result = subprocess.run(['docker', 'buildx', 'use', 'default'], 
-                                  capture_output=True, text=True, timeout=5)
+            result = subprocess.run(
+                ["docker", "buildx", "use", "default"], capture_output=True, text=True, timeout=5
+            )
             if result.returncode == 0:
                 self._debug_print("Activated default buildx builder")
                 return True
-            
+
             return False
-            
+
         except Exception as e:
             self._debug_print(f"Failed to setup buildx: {e}")
             return False
-    
+
     def _configure_shell_profile_buildkit(self) -> bool:
         """Configure shell profile for BuildKit environment variables."""
         try:
             from pathlib import Path
-            
+
             # More comprehensive shell profile detection
             shell_profiles = [
                 ".bashrc",
-                ".zshrc", 
+                ".zshrc",
                 ".bash_profile",  # macOS default
-                ".profile",       # Generic POSIX
-                ".config/fish/config.fish"  # Fish shell
+                ".profile",  # Generic POSIX
+                ".config/fish/config.fish",  # Fish shell
             ]
-            
+
             home = Path.home()
             target_profile = None
-            
+
             # Find existing profile
             for profile in shell_profiles:
                 profile_path = home / profile
                 if profile_path.exists():
                     target_profile = profile_path
                     break
-            
+
             if not target_profile:
                 # Create .bashrc as default
                 target_profile = home / ".bashrc"
-            
+
             # Check if already configured
             if target_profile.exists():
                 content = target_profile.read_text()
                 if "DOCKER_BUILDKIT=1" in content:
                     self._debug_print("Shell profile already configured for Docker BuildKit")
                     return True
-            
+
             # Add Docker BuildKit configuration
             buildkit_config = "\n# Docker BuildKit optimization (added by dcm-setup)\nexport DOCKER_BUILDKIT=1\nexport COMPOSE_DOCKER_CLI_BUILD=1\n"
-            
+
             # Handle fish shell differently
             if target_profile.name == "config.fish":
                 buildkit_config = "\n# Docker BuildKit optimization (added by dcm-setup)\nset -gx DOCKER_BUILDKIT 1\nset -gx COMPOSE_DOCKER_CLI_BUILD 1\n"
-            
+
             # Create parent directory if needed (for fish config)
             target_profile.parent.mkdir(parents=True, exist_ok=True)
-            
+
             with open(target_profile, "a") as f:
                 f.write(buildkit_config)
-            
+
             self._debug_print(f"Docker BuildKit configured in {target_profile}")
             return True
-            
+
         except Exception as e:
             self._debug_print(f"Failed to configure shell profile: {e}")
             return False
 
     def apply_wsl_config_optimization(self, dry_run=False) -> bool:
         """Apply WSL2 .wslconfig optimization automatically."""
-        if not self.system_info.get('is_wsl'):
+        if not self.system_info.get("is_wsl"):
             self._debug_print("Not in WSL environment, skipping .wslconfig optimization")
             return True
-            
+
         if dry_run:
             self._debug_print("DRY RUN: Would create/update .wslconfig file")
             return True
-            
+
         try:
             import os
-            
+
             # Generate .wslconfig content
             wslconfig_content = """# WSL2 Configuration (added by dcm-setup)
 [wsl2]
@@ -928,159 +973,182 @@ kernelCommandLine = loglevel=3 quiet
 # Enable systemd (required for some services)
 systemd=true
 """
-            
+
             # Create instructions for user to apply on Windows side
             windows_home = "/mnt/c/Users"
-            
+
             # Try to determine Windows username using multiple methods
             windows_user = None
             self._debug_print(f"Checking for Windows Users directory at {windows_home}")
-            
+
             if os.path.exists(windows_home):
-                self._debug_print(f"Windows Users directory found, detecting username...")
-                
+                self._debug_print("Windows Users directory found, detecting username...")
+
                 # Method 1: Try WSL username first (most reliable)
                 try:
                     import subprocess
-                    result = subprocess.run(['whoami'], capture_output=True, text=True, timeout=5)
+
+                    result = subprocess.run(["whoami"], capture_output=True, text=True, timeout=5)
                     if result.returncode == 0:
                         wsl_username = result.stdout.strip()
                         self._debug_print(f"WSL username from whoami: {wsl_username}")
-                        
+
                         # Check if this username exists as a Windows user directory
                         potential_windows_path = os.path.join(windows_home, wsl_username)
                         if os.path.isdir(potential_windows_path):
                             windows_user = wsl_username
-                            self._debug_print(f"✅ Matched WSL username to Windows user: {windows_user}")
+                            self._debug_print(
+                                f"✅ Matched WSL username to Windows user: {windows_user}"
+                            )
                         else:
-                            self._debug_print(f"WSL username {wsl_username} not found in Windows Users")
+                            self._debug_print(
+                                f"WSL username {wsl_username} not found in Windows Users"
+                            )
                 except Exception as e:
                     self._debug_print(f"Failed to get WSL username: {e}")
-                
+
                 # Method 2: Fallback to directory enumeration if Method 1 failed
                 if not windows_user:
                     self._debug_print("Falling back to directory enumeration method...")
-                    users = [d for d in os.listdir(windows_home) if os.path.isdir(os.path.join(windows_home, d))]
+                    users = [
+                        d
+                        for d in os.listdir(windows_home)
+                        if os.path.isdir(os.path.join(windows_home, d))
+                    ]
                     self._debug_print(f"Found directories: {users}")
-                    
+
                     # Filter out system directories
-                    users = [u for u in users if u not in ['Public', 'Default', 'Default User', 'All Users']]
+                    users = [
+                        u
+                        for u in users
+                        if u not in ["Public", "Default", "Default User", "All Users"]
+                    ]
                     self._debug_print(f"Filtered user directories: {users}")
-                    
+
                     if len(users) == 1:
                         windows_user = users[0]
                         self._debug_print(f"Single user detected via enumeration: {windows_user}")
                     elif len(users) > 1:
-                        self._debug_print(f"Multiple users found ({users}), will provide manual instructions")
+                        self._debug_print(
+                            f"Multiple users found ({users}), will provide manual instructions"
+                        )
                     else:
                         self._debug_print("No valid user directories found")
             else:
                 self._debug_print(f"Windows Users directory not found at {windows_home}")
-            
+
             if windows_user:
                 wsl_path = f"/mnt/c/Users/{windows_user}/.wslconfig"
                 windows_path = f"C:\\Users\\{windows_user}\\.wslconfig"
-                
-                logger.info(f"📍 Target file location:")
-                logger.info(f"   WSL path: {wsl_path}")
-                logger.info(f"   Windows path: {windows_path}")
-                logger.info(f"🔧 Creating .wslconfig file...")
-                
+
+                print("📍 Target file location:")
+                print(f"   WSL path: {wsl_path}")
+                print(f"   Windows path: {windows_path}")
+                print("🔧 Creating .wslconfig file...")
+
                 try:
                     # Create backup if file exists
                     if os.path.exists(wsl_path):
                         backup_path = f"{wsl_path}.backup"
                         self._debug_print(f"Backing up existing .wslconfig to {backup_path}")
-                        with open(wsl_path, "r") as src, open(backup_path, "w") as dst:
+                        with open(wsl_path) as src, open(backup_path, "w") as dst:
                             dst.write(src.read())
-                        logger.info(f"💾 Backed up existing file to {backup_path}")
-                    
+                        print(f"💾 Backed up existing file to {backup_path}")
+
                     with open(wsl_path, "w") as f:
                         f.write(wslconfig_content)
-                    
+
                     # Verify file was created and show contents
                     if os.path.exists(wsl_path):
                         # Get file size for verification
                         file_size = os.path.getsize(wsl_path)
-                        logger.info("✅ .wslconfig created successfully!")
-                        logger.info(f"📄 File created: {windows_path} ({file_size} bytes)")
-                        logger.info("🔍 To verify from Windows:")
-                        logger.info(f"   1. Open File Explorer")  
-                        logger.info(f"   2. Navigate to: {windows_path}")
-                        logger.info(f"   3. Or run in PowerShell: Get-Content '{windows_path}'")
-                        logger.info("💡 Restart WSL to apply changes: wsl --shutdown (in PowerShell)")
+                        print("✅ .wslconfig created successfully!")
+                        print(f"📄 File created: {windows_path} ({file_size} bytes)")
+                        print("🔍 To verify from Windows:")
+                        print("   1. Open File Explorer")
+                        print(f"   2. Navigate to: {windows_path}")
+                        print(f"   3. Or run in PowerShell: Get-Content '{windows_path}'")
+                        print("💡 Restart WSL to apply changes: wsl --shutdown (in PowerShell)")
                         return True
                     else:
-                        logger.error("❌ .wslconfig file was not created successfully")
-                        logger.error(f"❌ Expected file at: {wsl_path}")
+                        print("❌ .wslconfig file was not created successfully")
+                        print(f"❌ Expected file at: {wsl_path}")
                         return False
-                        
+
                 except PermissionError:
-                    logger.error("❌ Permission denied when creating .wslconfig file")
-                    logger.info("💡 Try running with elevated permissions or create manually")
+                    print("❌ Permission denied when creating .wslconfig file")
+                    print("💡 Try running with elevated permissions or create manually")
                     return False
                 except Exception as write_error:
-                    logger.error(f"❌ Failed to write .wslconfig file: {write_error}")
+                    print(f"❌ Failed to write .wslconfig file: {write_error}")
                     return False
             else:
                 # Show what we tried and why it failed, then provide manual instructions
-                logger.info("⚠️ Automatic .wslconfig creation failed - providing manual instructions")
-                logger.info(f"🔍 Attempted to access: {windows_home}")
-                
+                print("⚠️ Automatic .wslconfig creation failed - providing manual instructions")
+                print(f"🔍 Attempted to access: {windows_home}")
+
                 if os.path.exists(windows_home):
-                    users = [d for d in os.listdir(windows_home) if os.path.isdir(os.path.join(windows_home, d))]
+                    users = [
+                        d
+                        for d in os.listdir(windows_home)
+                        if os.path.isdir(os.path.join(windows_home, d))
+                    ]
                     all_users = users.copy()  # Keep original list for reporting
-                    users = [u for u in users if u not in ['Public', 'Default', 'Default User', 'All Users']]
-                    
-                    logger.info(f"📁 Found in Windows Users directory: {', '.join(all_users)}")
-                    logger.info(f"👤 Valid user directories: {', '.join(users) if users else 'None'}")
-                    
+                    users = [
+                        u
+                        for u in users
+                        if u not in ["Public", "Default", "Default User", "All Users"]
+                    ]
+
+                    print(f"📁 Found in Windows Users directory: {', '.join(all_users)}")
+                    print(f"👤 Valid user directories: {', '.join(users) if users else 'None'}")
+
                     if len(users) > 1:
-                        logger.info(f"⚠️ Multiple users detected: {', '.join(users)}")
-                        logger.info("💡 Please create .wslconfig file manually for your user:")
+                        print(f"⚠️ Multiple users detected: {', '.join(users)}")
+                        print("💡 Please create .wslconfig file manually for your user:")
                         for user in users:
-                            logger.info(f"   📄 For {user}: C:\\Users\\{user}\\.wslconfig")
+                            print(f"   📄 For {user}: C:\\Users\\{user}\\.wslconfig")
                     elif len(users) == 0:
-                        logger.info("❌ No valid Windows user directories found after filtering")
-                        logger.info("💡 Please create C:\\Users\\<your-username>\\.wslconfig")
+                        print("❌ No valid Windows user directories found after filtering")
+                        print("💡 Please create C:\\Users\\<your-username>\\.wslconfig")
                     else:
                         # This shouldn't happen (single user should be handled above)
-                        logger.error("❌ Unexpected error in user detection logic")
-                        logger.info("💡 Please create C:\\Users\\<your-username>\\.wslconfig")
+                        print("❌ Unexpected error in user detection logic")
+                        print("💡 Please create C:\\Users\\<your-username>\\.wslconfig")
                 else:
-                    logger.error(f"❌ Windows Users directory not found at: {windows_home}")
-                    logger.info("💡 This suggests WSL2 Windows filesystem mount issue")
-                    logger.info("💡 Please create C:\\Users\\<your-username>\\.wslconfig")
-                
-                logger.info("💡 File content should be:")
-                for line in wslconfig_content.strip().split('\n'):
-                    logger.info(f"   {line}")
-                logger.info("💡 After creating, restart WSL: wsl --shutdown (in PowerShell)")
+                    print(f"❌ Windows Users directory not found at: {windows_home}")
+                    print("💡 This suggests WSL2 Windows filesystem mount issue")
+                    print("💡 Please create C:\\Users\\<your-username>\\.wslconfig")
+
+                print("💡 File content should be:")
+                for line in wslconfig_content.strip().split("\n"):
+                    print(f"   {line}")
+                print("💡 After creating, restart WSL: wsl --shutdown (in PowerShell)")
                 return True
-                
+
         except Exception as e:
-            logger.error(f"Failed to apply .wslconfig optimization: {e}")
+            print(f"❌ Failed to apply .wslconfig optimization: {e}")
             # Provide manual instructions as fallback
-            logger.info("💡 Please manually create .wslconfig file as shown in validation output")
+            print("💡 Please manually create .wslconfig file as shown in validation output")
             return False
 
     def apply_filesystem_migration_helper(self, dry_run=False) -> bool:
         """Provide guided filesystem migration assistance."""
-        if not self.system_info.get('is_wsl'):
+        if not self.system_info.get("is_wsl"):
             self._debug_print("Not in WSL environment, skipping filesystem optimization")
             return True
-            
+
         if dry_run:
             self._debug_print("DRY RUN: Would provide filesystem migration guidance")
             return True
-            
+
         try:
             import os
-            
+
             # Check current location
             current_dir = os.getcwd()
-            
-            if current_dir.startswith('/mnt/'):
+
+            if current_dir.startswith("/mnt/"):
                 logger.info("🚨 You are currently in a Windows-mounted directory (slow performance)")
                 logger.info("💡 Migration recommended:")
                 logger.info("   1. Create directory in WSL2 filesystem:")
@@ -1092,7 +1160,7 @@ systemd=true
             else:
                 logger.info("✅ You are already using WSL2 native filesystem")
                 return True
-                
+
         except Exception as e:
             logger.error(f"Failed to analyze filesystem location: {e}")
             return False
@@ -1102,25 +1170,22 @@ systemd=true
         if dry_run:
             self._debug_print("DRY RUN: Would clean up Docker resources")
             return True
-            
+
         try:
             import subprocess
-            
+
             # Check if docker is available
-            if not self.system_info.get('docker_available'):
+            if not self.system_info.get("docker_available"):
                 self._debug_print("Docker not available, skipping cleanup")
                 return True
-            
+
             logger.info("🧹 Cleaning up Docker resources...")
-            
+
             # Run docker system prune
             result = subprocess.run(
-                ['docker', 'system', 'prune', '-f'],
-                capture_output=True,
-                text=True,
-                timeout=60
+                ["docker", "system", "prune", "-f"], capture_output=True, text=True, timeout=60
             )
-            
+
             if result.returncode == 0:
                 logger.info("✅ Docker system cleanup completed")
                 if result.stdout.strip():
@@ -1129,7 +1194,7 @@ systemd=true
             else:
                 logger.error(f"Docker cleanup failed: {result.stderr}")
                 return False
-                
+
         except subprocess.TimeoutExpired:
             logger.error("Docker cleanup timed out")
             return False
@@ -1137,55 +1202,51 @@ systemd=true
             logger.error(f"Failed to apply disk cleanup: {e}")
             return False
 
-    def apply_all_safe_optimizations(self, dry_run=False) -> Dict[str, bool]:
+    def apply_all_safe_optimizations(self, dry_run=False) -> dict[str, bool]:
         """Apply all safe optimizations automatically."""
         results = {}
-        
+
         logger.info("🚀 Applying all safe optimizations...")
-        
+
         # Docker BuildKit (safe - just environment variables)
-        results['docker_buildkit'] = self.apply_docker_buildkit_optimization(dry_run)
-        
+        results["docker_buildkit"] = self.apply_docker_buildkit_optimization(dry_run)
+
         # Filesystem migration helper (safe - just guidance)
-        results['filesystem_migration'] = self.apply_filesystem_migration_helper(dry_run)
-        
+        results["filesystem_migration"] = self.apply_filesystem_migration_helper(dry_run)
+
         # Disk cleanup (safe - removes unused resources)
-        results['disk_cleanup'] = self.apply_disk_cleanup_optimization(dry_run)
-        
+        results["disk_cleanup"] = self.apply_disk_cleanup_optimization(dry_run)
+
         # WSL config (requires user action, so just guidance)
-        if self.system_info.get('is_wsl'):
-            results['wsl_config'] = self.apply_wsl_config_optimization(dry_run)
-        
+        if self.system_info.get("is_wsl"):
+            results["wsl_config"] = self.apply_wsl_config_optimization(dry_run)
+
         # Summary
         successful = sum(results.values())
         total = len(results)
-        
+
         if successful == total:
             logger.info(f"✅ All {total} optimizations applied successfully!")
         else:
             logger.info(f"⚠️ {successful}/{total} optimizations applied successfully")
-            
+
         return results
 
 
-def validate_workstation_setup(debug_mode=False) -> Dict[str, any]:
+def validate_workstation_setup(debug_mode=False) -> dict[str, any]:
     """Validate current workstation setup for data engineering."""
     optimizer = WorkstationOptimizer(debug_mode=debug_mode)
-    
+
     logger.info("🔍 Validating workstation setup...")
-    
+
     # System info
     system_info = optimizer.system_info
     logger.info(f"Platform: {system_info['platform']}")
-    if system_info['is_wsl']:
+    if system_info["is_wsl"]:
         logger.info(f"WSL Version: {system_info['wsl_version']}")
     logger.info(f"Docker Available: {system_info['docker_available']}")
-    
+
     # Performance validation
     validation_results = optimizer.validate_performance_setup()
-    
-    return {
-        "system_info": system_info,
-        "validation": validation_results,
-        "optimizer": optimizer
-    }
+
+    return {"system_info": system_info, "validation": validation_results, "optimizer": optimizer}

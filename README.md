@@ -30,7 +30,7 @@ All using **unified namespace management** with statistical performance improvem
 pipx install devcontainer-service-manager[workstation]
 pipx ensurepath && source ~/.bashrc
 
-# One-time setup for optimal performance  
+# One-time setup for optimal performance
 dcm-setup install --profile data-engineering
 dcm-setup validate
 

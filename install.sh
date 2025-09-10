@@ -12,31 +12,31 @@ echo "Installing DevContainer Service Manager..."
 # Check prerequisites
 check_prerequisites() {
     echo "Checking prerequisites..."
-    
+
     # Check Python
     if ! command -v python3 &> /dev/null; then
         echo "Error: Python 3 is required but not installed"
         exit 1
     fi
-    
+
     # Check pip
     if ! command -v pip3 &> /dev/null; then
         echo "Error: pip3 is required but not installed"
         exit 1
     fi
-    
+
     # Check Docker (optional but recommended)
     if ! command -v docker &> /dev/null; then
         echo "Warning: Docker not found. Service management will be limited."
     fi
-    
+
     echo "✓ Prerequisites check passed"
 }
 
 # Install via pip
 install_via_pip() {
     echo "Installing devcontainer-service-manager via pip..."
-    
+
     # Install from PyPI (when published) or from source
     if pip3 show devcontainer-service-manager &> /dev/null; then
         echo "Upgrading existing installation..."
@@ -51,48 +51,48 @@ install_via_pip() {
             exit 1
         fi
     fi
-    
+
     echo "✓ Package installed successfully"
 }
 
 # Set up configuration directory
 setup_config() {
     echo "Setting up configuration directory..."
-    
+
     mkdir -p "$CONFIG_DIR"
     mkdir -p "$CONFIG_DIR/templates"
-    
+
     # Copy default templates if installing from source
     SCRIPT_DIR="$(dirname "$0")"
     if [ -d "$SCRIPT_DIR/src/devcontainer_services/templates" ]; then
         echo "Copying default templates..."
         cp -r "$SCRIPT_DIR/src/devcontainer_services/templates/"* "$CONFIG_DIR/templates/"
     fi
-    
+
     # Copy default configuration
     if [ -f "$SCRIPT_DIR/src/devcontainer_services/config/default.yaml" ]; then
         echo "Setting up default configuration..."
         cp "$SCRIPT_DIR/src/devcontainer_services/config/default.yaml" "$CONFIG_DIR/config.yaml"
     fi
-    
+
     echo "✓ Configuration directory set up at $CONFIG_DIR"
 }
 
 # Create symlinks for CLI
 setup_cli() {
     echo "Setting up CLI access..."
-    
+
     # Check if dcm command is available via pip installation
     if command -v dcm &> /dev/null; then
         echo "✓ dcm command available via pip installation"
         return
     fi
-    
+
     # Fall back to local installation
     SCRIPT_DIR="$(dirname "$0")"
     if [ -f "$SCRIPT_DIR/bin/dcm" ]; then
         echo "Creating symlink for dcm command..."
-        
+
         # Check if we can write to install directory
         if [ -w "$INSTALL_DIR" ]; then
             ln -sf "$SCRIPT_DIR/bin/dcm" "$INSTALL_DIR/dcm"
@@ -108,7 +108,7 @@ setup_cli() {
 # Verify installation
 verify_installation() {
     echo "Verifying installation..."
-    
+
     if command -v dcm &> /dev/null; then
         echo "✓ dcm command is available"
         echo "Testing dcm --version..."
@@ -116,11 +116,11 @@ verify_installation() {
     else
         echo "Warning: dcm command not found in PATH"
     fi
-    
+
     if [ -d "$CONFIG_DIR" ]; then
         echo "✓ Configuration directory exists"
     fi
-    
+
     template_count=$(find "$CONFIG_DIR/templates" -name "*.yaml" 2>/dev/null | wc -l)
     echo "✓ Found $template_count service templates"
 }

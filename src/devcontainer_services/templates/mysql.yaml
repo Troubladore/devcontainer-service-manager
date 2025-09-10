@@ -26,7 +26,7 @@ healthcheck:
 labels:
   devcontainer-service-manager.namespace: "{{namespace}}"
   devcontainer-service-manager.service: "mysql"
-  devcontainer-service-manager.template: "mysql:{{version|default('8.0')}}" 
+  devcontainer-service-manager.template: "mysql:{{version|default('8.0')}}"
   devcontainer-service-manager.project: "{{project}}"
   devcontainer-service-manager.branch: "{{branch}}"
 

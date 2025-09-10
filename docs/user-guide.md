@@ -7,7 +7,7 @@ Complete guide to using DevContainer Service Manager for data engineering develo
 ### Service Management
 DCM manages development services (databases, message queues, etc.) across projects and branches with automatic conflict resolution and resource sharing.
 
-### Build Caching  
+### Build Caching
 Fingerprint-based Docker build caching system that can provide 149x faster builds by sharing cached layers across repositories and branches.
 
 ### Workstation Optimization
@@ -188,7 +188,7 @@ environments:
     postgres:
       image: postgres:15
       memory_limit: 1g
-      
+
   staging:
     postgres:
       image: postgres:15
@@ -231,7 +231,7 @@ dcm cache import --registry your-team-registry.com
    FROM python:3.11 as deps
    COPY requirements.txt .
    RUN pip install -r requirements.txt
-   
+
    FROM deps as final
    COPY . .
    ```
@@ -369,13 +369,13 @@ dcm info postgres
   run: |
     pipx install devcontainer-service-manager
     dcm up --detach postgres redis
-    
+
 - name: Run tests
   run: |
     export DATABASE_URL=$(dcm connection-string postgres)
     export REDIS_URL=$(dcm connection-string redis)
     pytest tests/
-    
+
 - name: Cleanup
   run: dcm down
 ```
@@ -433,14 +433,14 @@ team:
   shared_services:
     - postgres
     - redis
-  
+
   development_standards:
     postgres:
       version: "15"
       extensions:
         - postgis
         - uuid-ossp
-    
+
   resource_limits:
     default_memory: 1g
     default_cpu: 0.5
@@ -509,6 +509,6 @@ dcm validate --against team-baseline
 ## Next Steps
 
 - **🔧 [Optimization Guide](optimization-guide.md)** - Maximize development environment performance
-- **🏗️ [Architecture](architecture.md)** - Understand how DCM works internally  
+- **🏗️ [Architecture](architecture.md)** - Understand how DCM works internally
 - **🤝 [Development Guide](development-guide.md)** - Contribute to DCM or create extensions
 - **📚 [API Reference](api-reference.md)** - Complete command and configuration reference

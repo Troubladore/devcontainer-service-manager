@@ -1,6 +1,6 @@
 # DevContainer Service Manager Enhancement Plan
 
-**Date**: 2025-01-09  
+**Date**: 2025-01-09
 **Objective**: Enhance service manager with Docker caching and workstation optimization capabilities
 
 ## 🎯 **Enhancement Overview**
@@ -9,7 +9,7 @@ Expanding from **service orchestration** to **complete development environment o
 
 ### New Capabilities Being Added:
 1. **Docker Build Caching**: Fingerprint-based caching with 149x performance improvement
-2. **Workstation Optimization**: WSL2 setup, performance tuning, health monitoring  
+2. **Workstation Optimization**: WSL2 setup, performance tuning, health monitoring
 3. **Cross-Repository Support**: Cache sharing between projects and branches
 4. **Enhanced CLI**: New commands for caching and workstation management
 
@@ -43,7 +43,7 @@ src/devcontainer_services/
 │   ├── registry.py     # Local registry management
 │   └── cli.py          # dcm-cache commands
 ├── workstation/        # NEW: Development environment setup
-│   ├── __init__.py  
+│   ├── __init__.py
 │   ├── setup.py        # WSL2 optimization, Docker config
 │   ├── health.py       # Performance validation & monitoring
 │   ├── troubleshoot.py # Common issue resolution
@@ -73,14 +73,14 @@ src/devcontainer_services/
 ```bash
 # Existing service management (unchanged)
 dcm up --config services.yaml
-dcm status  
+dcm status
 dcm down
 ```
 
 ### NEW: Caching Management (`dcm-cache`):
 ```bash
 dcm-cache status                      # Show cache statistics and registry health
-dcm-cache configure --project NAME   # Setup project-specific caching  
+dcm-cache configure --project NAME   # Setup project-specific caching
 dcm-cache clean --older-than 7d      # Remove old cached images
 dcm-cache optimize                    # Pre-build common base images
 dcm-cache registry start/stop/status  # Manage local registry
@@ -90,7 +90,7 @@ dcm-cache registry start/stop/status  # Manage local registry
 ```bash
 dcm-setup install --profile data-engineering  # One-time workstation optimization
 dcm-setup validate                            # Check performance setup
-dcm-setup troubleshoot                        # Diagnose and fix common issues  
+dcm-setup troubleshoot                        # Diagnose and fix common issues
 dcm-setup wsl2-optimize                       # WSL2-specific optimizations
 ```
 
@@ -102,7 +102,7 @@ dcm-setup wsl2-optimize                       # WSL2-specific optimizations
 3. **Add new CLI entry points** to pyproject.toml
 4. **Update package description** to reflect expanded scope
 
-### Phase 2: Enhanced Features  
+### Phase 2: Enhanced Features
 1. **Local registry management** with auto-startup and health monitoring
 2. **WSL2 optimization scripts** for performance tuning
 3. **Project configuration system** for cache management
@@ -110,7 +110,7 @@ dcm-setup wsl2-optimize                       # WSL2-specific optimizations
 
 ### Phase 3: Testing & Documentation
 1. **Comprehensive testing** of new features
-2. **WSL2 compatibility validation** 
+2. **WSL2 compatibility validation**
 3. **Documentation updates** (README, CLI help, troubleshooting)
 4. **Integration testing** with data-eng-template
 
@@ -156,7 +156,7 @@ pip install devcontainer-service-manager[workstation]
 # One-time workstation optimization
 dcm-setup install --profile data-engineering
 
-# Configure project-specific caching  
+# Configure project-specific caching
 dcm-cache configure --project {{cookiecutter.repo_slug}}
 
 # Start services with caching optimization
@@ -176,11 +176,11 @@ services:
     template: "postgres:16"
     persistent: true
     cache_enabled: true      # NEW feature
-    
+
   airflow:
     template: "airflow:3.0.6"
     depends_on: ["postgres"]
-    cache_enabled: true      # NEW feature  
+    cache_enabled: true      # NEW feature
     build_optimization: "fingerprint"  # NEW feature
 ```
 
@@ -236,12 +236,12 @@ dcm up  # Uses cached builds, starts in ~10 seconds
 
 ### Ongoing Development:
 ```bash
-# Branch switching (near-instant if deps unchanged)  
+# Branch switching (near-instant if deps unchanged)
 git checkout feature/new-analysis
 dcm up  # <1 second for cache hit
 
 # New repository (benefits from shared cache)
-cd ../my-other-project  
+cd ../my-other-project
 dcm up  # ~10 seconds, reuses cached base images
 ```
 

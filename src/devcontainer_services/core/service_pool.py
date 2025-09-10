@@ -1,11 +1,12 @@
 """Service pool management with health monitoring and lifecycle control."""
 
-import yaml
 import time
-from pathlib import Path
-from typing import Dict, List, Optional, Any
-from pydantic import BaseModel
 from enum import Enum
+from pathlib import Path
+from typing import Any
+
+import yaml
+from pydantic import BaseModel
 
 # Import docker at module level for mocking in tests
 try:
@@ -16,6 +17,7 @@ except ImportError:
 
 class ServiceStatus(str, Enum):
     """Service status enumeration."""
+
     STARTING = "starting"
     HEALTHY = "healthy"
     UNHEALTHY = "unhealthy"
@@ -25,315 +27,330 @@ class ServiceStatus(str, Enum):
 
 class ServiceInfo(BaseModel):
     """Information about a managed service."""
+
     name: str
     namespace: str
     template: str
-    container_id: Optional[str] = None
+    container_id: str | None = None
     status: ServiceStatus = ServiceStatus.MISSING
-    ports: Dict[str, int] = {}
-    depends_on: List[str] = []
+    ports: dict[str, int] = {}
+    depends_on: list[str] = []
     persistent: bool = True
     health_check: bool = False
-    last_health_check: Optional[float] = None
+    last_health_check: float | None = None
 
 
 class ServicePool:
     """Manages a pool of services for a namespace."""
-    
-    def __init__(self, namespace: str, config_dir: Optional[Path] = None):
+
+    def __init__(self, namespace: str, config_dir: Path | None = None):
         self.namespace = namespace
         self.config_dir = config_dir or Path.home() / ".devcontainer-services"
-        self.services: Dict[str, ServiceInfo] = {}
+        self.services: dict[str, ServiceInfo] = {}
         self.templates_dir = self.config_dir / "templates"
         self.templates_dir.mkdir(exist_ok=True)
-    
-    def load_services_config(self, config_path: Path) -> Dict[str, Any]:
+
+    def load_services_config(self, config_path: Path) -> dict[str, Any]:
         """Load services configuration from YAML file."""
         if not config_path.exists():
             raise FileNotFoundError(f"Services config not found: {config_path}")
-        
-        with open(config_path, 'r') as f:
+
+        with open(config_path) as f:
             config = yaml.safe_load(f)
-        
-        return config.get('services', {})
-    
-    def add_service(self, name: str, config: Dict[str, Any]) -> ServiceInfo:
+
+        return config.get("services", {})
+
+    def add_service(self, name: str, config: dict[str, Any]) -> ServiceInfo:
         """Add a service to the pool."""
         service_info = ServiceInfo(
             name=name,
             namespace=self.namespace,
-            template=config.get('template', ''),
-            depends_on=config.get('depends_on', []),
-            persistent=config.get('persistent', True),
-            health_check=config.get('health_check', False)
+            template=config.get("template", ""),
+            depends_on=config.get("depends_on", []),
+            persistent=config.get("persistent", True),
+            health_check=config.get("health_check", False),
         )
-        
+
         self.services[name] = service_info
         return service_info
-    
-    def get_service(self, name: str) -> Optional[ServiceInfo]:
+
+    def get_service(self, name: str) -> ServiceInfo | None:
         """Get service information."""
         return self.services.get(name)
-    
-    def list_services(self) -> List[ServiceInfo]:
+
+    def list_services(self) -> list[ServiceInfo]:
         """List all services in the pool."""
         return list(self.services.values())
-    
+
     def start_service(self, name: str) -> bool:
         """Start a specific service."""
         service = self.services.get(name)
         if not service:
             return False
-        
+
         # Check if service is already running
         if self._is_service_running(service):
             service.status = ServiceStatus.HEALTHY
             return True
-        
+
         # Start dependencies first
         for dep in service.depends_on:
             if not self.start_service(dep):
                 return False
-        
+
         # Load template and start service
         template_config = self._load_template(service.template)
         if not template_config:
             return False
-        
+
         success = self._start_service_container(service, template_config)
         if success:
             service.status = ServiceStatus.STARTING
             # Wait a moment for container to initialize
             time.sleep(2)
-            service.status = ServiceStatus.HEALTHY if self._is_service_running(service) else ServiceStatus.UNHEALTHY
-        
+            service.status = (
+                ServiceStatus.HEALTHY
+                if self._is_service_running(service)
+                else ServiceStatus.UNHEALTHY
+            )
+
         return success
-    
+
     def stop_service(self, name: str) -> bool:
         """Stop a specific service."""
         service = self.services.get(name)
         if not service:
             return False
-        
+
         success = self._stop_service_container(service)
         if success:
             service.status = ServiceStatus.STOPPED
             service.container_id = None
-        
+
         return success
-    
+
     def restart_service(self, name: str) -> bool:
         """Restart a specific service."""
         self.stop_service(name)
         time.sleep(1)
         return self.start_service(name)
-    
-    def start_all_services(self) -> Dict[str, bool]:
+
+    def start_all_services(self) -> dict[str, bool]:
         """Start all services in dependency order."""
         results = {}
-        
+
         # Sort services by dependencies
         ordered_services = self._sort_services_by_dependencies()
-        
+
         for service_name in ordered_services:
             results[service_name] = self.start_service(service_name)
-        
+
         return results
-    
-    def stop_all_services(self) -> Dict[str, bool]:
+
+    def stop_all_services(self) -> dict[str, bool]:
         """Stop all services."""
         results = {}
-        
+
         # Stop in reverse dependency order
         ordered_services = self._sort_services_by_dependencies()
         for service_name in reversed(ordered_services):
             results[service_name] = self.stop_service(service_name)
-        
+
         return results
-    
+
     def check_service_health(self, name: str) -> ServiceStatus:
         """Check health of a specific service."""
         service = self.services.get(name)
         if not service:
             return ServiceStatus.MISSING
-        
+
         if not service.health_check:
             # If no health check configured, just check if running
-            return ServiceStatus.HEALTHY if self._is_service_running(service) else ServiceStatus.STOPPED
-        
+            return (
+                ServiceStatus.HEALTHY
+                if self._is_service_running(service)
+                else ServiceStatus.STOPPED
+            )
+
         # Perform health check
         is_healthy = self._perform_health_check(service)
         service.status = ServiceStatus.HEALTHY if is_healthy else ServiceStatus.UNHEALTHY
         service.last_health_check = time.time()
-        
+
         return service.status
-    
-    def get_service_status(self) -> Dict[str, ServiceStatus]:
+
+    def get_service_status(self) -> dict[str, ServiceStatus]:
         """Get status of all services."""
         status = {}
-        for name, service in self.services.items():
+        for name, _service in self.services.items():
             status[name] = self.check_service_health(name)
         return status
-    
-    def _load_template(self, template: str) -> Optional[Dict[str, Any]]:
+
+    def _load_template(self, template: str) -> dict[str, Any] | None:
         """Load service template configuration."""
         # Handle template format like "postgres:16" or "airflow:2.9.3"
         if ":" in template:
             template_name, version = template.split(":", 1)
         else:
             template_name, version = template, "latest"
-        
+
         template_file = self.templates_dir / f"{template_name}.yaml"
         if not template_file.exists():
             # Return basic template for unknown services
             return self._create_basic_template(template_name, version)
-        
-        with open(template_file, 'r') as f:
+
+        with open(template_file) as f:
             template_config = yaml.safe_load(f)
-        
+
         # Substitute version
-        if 'image' in template_config:
-            template_config['image'] = template_config['image'].replace('{{version}}', version)
-        
+        if "image" in template_config:
+            template_config["image"] = template_config["image"].replace("{{version}}", version)
+
         return template_config
-    
-    def _create_basic_template(self, name: str, version: str) -> Dict[str, Any]:
+
+    def _create_basic_template(self, name: str, version: str) -> dict[str, Any]:
         """Create a basic template for unknown services."""
         return {
-            'image': f"{name}:{version}",
-            'container_name': f"{self.namespace}_{name}",
-            'labels': {
-                'devcontainer-service-manager.namespace': self.namespace,
-                'devcontainer-service-manager.service': name
-            }
+            "image": f"{name}:{version}",
+            "container_name": f"{self.namespace}_{name}",
+            "labels": {
+                "devcontainer-service-manager.namespace": self.namespace,
+                "devcontainer-service-manager.service": name,
+            },
         }
-    
-    def _sort_services_by_dependencies(self) -> List[str]:
+
+    def _sort_services_by_dependencies(self) -> list[str]:
         """Sort services in dependency order using topological sort."""
         # Simple topological sort implementation
         visited = set()
         temp_visited = set()
         result = []
-        
+
         def visit(service_name: str):
             if service_name in temp_visited:
                 raise ValueError(f"Circular dependency detected involving {service_name}")
             if service_name in visited:
                 return
-            
+
             temp_visited.add(service_name)
-            
+
             service = self.services.get(service_name)
             if service:
                 for dep in service.depends_on:
                     if dep in self.services:
                         visit(dep)
-            
+
             temp_visited.remove(service_name)
             visited.add(service_name)
             result.append(service_name)
-        
+
         for service_name in self.services:
             if service_name not in visited:
                 visit(service_name)
-        
+
         return result
-    
+
     def _is_service_running(self, service: ServiceInfo) -> bool:
         """Check if service container is running."""
         try:
             if docker is None:
                 return False
             client = docker.from_env()
-            
+
             # Look for container by name or labels
-            containers = client.containers.list(filters={
-                'label': [
-                    f'devcontainer-service-manager.namespace={self.namespace}',
-                    f'devcontainer-service-manager.service={service.name}'
-                ]
-            })
-            
+            containers = client.containers.list(
+                filters={
+                    "label": [
+                        f"devcontainer-service-manager.namespace={self.namespace}",
+                        f"devcontainer-service-manager.service={service.name}",
+                    ]
+                }
+            )
+
             if containers:
                 container = containers[0]
                 service.container_id = container.id
-                return container.status == 'running'
-                
+                return container.status == "running"
+
         except Exception:
             pass
-        
+
         return False
-    
-    def _start_service_container(self, service: ServiceInfo, template_config: Dict[str, Any]) -> bool:
+
+    def _start_service_container(
+        self, service: ServiceInfo, template_config: dict[str, Any]
+    ) -> bool:
         """Start service container using Docker."""
         try:
             if docker is None:
                 return False
             client = docker.from_env()
-            
+
             container_config = {
-                'image': template_config.get('image'),
-                'name': f"{self.namespace}_{service.name}",
-                'labels': {
-                    'devcontainer-service-manager.namespace': self.namespace,
-                    'devcontainer-service-manager.service': service.name,
-                    'devcontainer-service-manager.template': service.template
+                "image": template_config.get("image"),
+                "name": f"{self.namespace}_{service.name}",
+                "labels": {
+                    "devcontainer-service-manager.namespace": self.namespace,
+                    "devcontainer-service-manager.service": service.name,
+                    "devcontainer-service-manager.template": service.template,
                 },
-                'detach': True,
-                'remove': False
+                "detach": True,
+                "remove": False,
             }
-            
+
             # Add template-specific configuration
-            if 'environment' in template_config:
-                container_config['environment'] = template_config['environment']
-            
-            if 'ports' in template_config:
-                container_config['ports'] = template_config['ports']
-            
-            if 'volumes' in template_config:
-                container_config['volumes'] = template_config['volumes']
-            
-            if 'command' in template_config:
-                container_config['command'] = template_config['command']
-            
+            if "environment" in template_config:
+                container_config["environment"] = template_config["environment"]
+
+            if "ports" in template_config:
+                container_config["ports"] = template_config["ports"]
+
+            if "volumes" in template_config:
+                container_config["volumes"] = template_config["volumes"]
+
+            if "command" in template_config:
+                container_config["command"] = template_config["command"]
+
             # Handle existing container with same name
-            container_name = container_config['name']
+            container_name = container_config["name"]
             try:
                 existing_container = client.containers.get(container_name)
                 # Check if it's our container by labels
                 labels = existing_container.labels or {}
-                if (labels.get('devcontainer-service-manager.namespace') == self.namespace and
-                    labels.get('devcontainer-service-manager.service') == service.name):
+                if (
+                    labels.get("devcontainer-service-manager.namespace") == self.namespace
+                    and labels.get("devcontainer-service-manager.service") == service.name
+                ):
                     # It's our container - try to start it if stopped
-                    if existing_container.status != 'running':
+                    if existing_container.status != "running":
                         existing_container.start()
                     service.container_id = existing_container.id
                     return True
                 else:
                     # It's a different container with same name - remove it
-                    if existing_container.status == 'running':
+                    if existing_container.status == "running":
                         existing_container.stop(timeout=5)
                     existing_container.remove(force=True)
             except docker.errors.NotFound:
                 # No existing container, proceed with creation
                 pass
-            
+
             # Create and start container
             container = client.containers.run(**container_config)
             service.container_id = container.id
-            
+
             return True
         except Exception as e:
             print(f"Failed to start service {service.name}: {e}")
             return False
-    
+
     def _stop_service_container(self, service: ServiceInfo) -> bool:
         """Stop service container."""
         try:
             if docker is None:
                 return False
             client = docker.from_env()
-            
+
             if service.container_id:
                 container = client.containers.get(service.container_id)
                 container.stop(timeout=10)
@@ -342,38 +359,41 @@ class ServicePool:
                 return True
             else:
                 # Find container by labels
-                containers = client.containers.list(all=True, filters={
-                    'label': [
-                        f'devcontainer-service-manager.namespace={self.namespace}',
-                        f'devcontainer-service-manager.service={service.name}'
-                    ]
-                })
-                
+                containers = client.containers.list(
+                    all=True,
+                    filters={
+                        "label": [
+                            f"devcontainer-service-manager.namespace={self.namespace}",
+                            f"devcontainer-service-manager.service={service.name}",
+                        ]
+                    },
+                )
+
                 for container in containers:
                     container.stop(timeout=10)
                     if not service.persistent:
                         container.remove()
-                
+
                 return True
         except Exception as e:
             print(f"Failed to stop service {service.name}: {e}")
             return False
-    
+
     def _perform_health_check(self, service: ServiceInfo) -> bool:
         """Perform health check on service."""
         if not service.container_id:
             return False
-        
+
         try:
             if docker is None:
                 return False
             client = docker.from_env()
             container = client.containers.get(service.container_id)
-            
+
             # Check if container is running
-            if container.status != 'running':
+            if container.status != "running":
                 return False
-            
+
             # TODO: Implement service-specific health checks
             # For now, just check if container is running
             return True

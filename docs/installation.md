@@ -14,7 +14,7 @@ Complete installation and setup guide for DevContainer Service Manager.
 # Ubuntu/Debian
 sudo apt update && sudo apt install pipx
 
-# macOS  
+# macOS
 brew install pipx
 
 # Windows (PowerShell as admin)
@@ -50,7 +50,7 @@ Just service management and build caching, without workstation optimization tool
 # Install core features only
 pipx install devcontainer-service-manager
 
-# Verify installation  
+# Verify installation
 dcm --version
 ```
 
@@ -127,8 +127,8 @@ service_timeout: 300
 registry:
   host: localhost
   port: 5000
-  
-# Workstation optimization preferences  
+
+# Workstation optimization preferences
 workstation:
   auto_optimize: true
   profile: data-engineering
@@ -143,12 +143,12 @@ Each project can have a `.dcm/config.yaml`:
 project:
   name: my-data-project
   namespace: data-engineering
-  
+
 services:
   postgres:
     port: 5432
     image: postgres:15
-    
+
   redis:
     port: 6379
     image: redis:7
@@ -286,7 +286,7 @@ wsl --list --verbose
    ```bash
    # Service logs
    dcm logs <service-name>
-   
+
    # DCM operation logs
    tail -f ~/.dcm/logs/dcm.log
    ```
@@ -369,6 +369,6 @@ The script checks that all DCM components, services, and configurations have bee
 After installation:
 
 1. **📖 Read the [User Guide](user-guide.md)** - Learn core DCM concepts and workflows
-2. **⚡ Review [Optimization Guide](optimization-guide.md)** - Understand performance optimizations  
+2. **⚡ Review [Optimization Guide](optimization-guide.md)** - Understand performance optimizations
 3. **🏗️ Explore [Architecture](architecture.md)** - Deep dive into how DCM works
 4. **🤝 Check [Development Guide](development-guide.md)** - Contributing and extending DCM

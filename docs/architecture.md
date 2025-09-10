@@ -48,7 +48,7 @@ graph TD
     D --> E[Container Creation]
     E --> F[Service Registration]
     F --> G[Ready for Use]
-    
+
     G --> H[Health Monitoring]
     H --> I{Healthy?}
     I -->|Yes| H
@@ -65,7 +65,7 @@ templates/
 │   ├── postgres.yaml       # PostgreSQL with extensions
 │   ├── redis.yaml          # Redis with persistence
 │   └── kafka.yaml          # Kafka + Zookeeper
-├── data-engineering/       # Domain-specific templates  
+├── data-engineering/       # Domain-specific templates
 │   ├── jupyter.yaml        # JupyterLab with DS libraries
 │   ├── airflow.yaml        # Airflow with LocalExecutor
 │   └── spark.yaml          # Spark standalone cluster
@@ -82,7 +82,7 @@ ports:
   - "5432"
 environment:
   - POSTGRES_DB=dev_db
-  - POSTGRES_USER=postgres  
+  - POSTGRES_USER=postgres
   - POSTGRES_PASSWORD=postgres
 volumes:
   - postgres-data:/var/lib/postgresql/data
@@ -136,7 +136,7 @@ graph LR
     C -->|Yes| D[Pull Cached Layers]
     C -->|No| E[Build & Cache]
     E --> F[Push to Local Registry]
-    
+
     F --> G[Available for Project B]
     G --> H[Project B Build]
     H --> I[Cache Hit!]
@@ -146,7 +146,7 @@ graph LR
 ### Cross-Repository Benefits
 
 1. **Shared Base Images**: Common Python/R/Java base images cached once
-2. **Dependency Layers**: Package installations reused across projects  
+2. **Dependency Layers**: Package installations reused across projects
 3. **Build Stage Reuse**: Multi-stage Dockerfile optimization
 4. **Team Sharing**: Optional push to team registry for shared cache
 
@@ -163,14 +163,14 @@ class WorkstationOptimizer:
     def __init__(self):
         self.detectors = [
             WSLDetector(),       # 6 different WSL detection methods
-            DockerDetector(),    # Docker configuration analysis  
+            DockerDetector(),    # Docker configuration analysis
             FilesystemDetector(),# Performance tier detection
             ResourceDetector(),  # Memory, disk, CPU analysis
         ]
-    
+
     def analyze_environment(self):
         return {
-            detector.name: detector.analyze() 
+            detector.name: detector.analyze()
             for detector in self.detectors
         }
 ```
@@ -193,13 +193,13 @@ graph TD
     A[Detect Environment] --> B{WSL2?}
     B -->|Yes| C[WSL2 Optimizations]
     B -->|No| D[Native Linux/macOS]
-    
+
     C --> E[Filesystem Performance]
     C --> F[.wslconfig Creation]
     C --> G[Docker Integration]
-    
+
     D --> H[Docker Optimization]
-    
+
     E --> I[Results Summary]
     F --> I
     G --> I
@@ -215,7 +215,7 @@ graph TD
 ```
 Configuration Priority (highest to lowest):
 1. Command line arguments
-2. Environment variables  
+2. Environment variables
 3. Project .dcm/config.yaml
 4. User ~/.dcm/config.yaml
 5. System defaults
@@ -229,11 +229,11 @@ global:
   registry:
     host: localhost
     port: 5000
-  
+
   workstation:
     auto_optimize: true
     profile: data-engineering
-    
+
   service_defaults:
     timeout: 300
     health_check_interval: 30
@@ -242,7 +242,7 @@ global:
 project:
   name: my-data-project
   namespace: data-engineering
-  
+
 services:
   postgres:
     template: postgres
@@ -250,7 +250,7 @@ services:
     resources:
       memory: 2g
       cpu: 1
-      
+
 environments:
   development:
     postgres:
@@ -296,13 +296,13 @@ DCM integrates seamlessly with VS Code DevContainers:
   run: |
     pipx install devcontainer-service-manager[workstation]
     dcm up --detach postgres redis
-    
+
 - name: Build with Caching
   run: |
     dcm cache enable
     docker build --tag ${{ github.sha }} .
-    
-- name: Run Tests  
+
+- name: Run Tests
   env:
     DATABASE_URL: ${{ dcm connection-string postgres }}
     REDIS_URL: ${{ dcm connection-string redis }}
@@ -371,7 +371,7 @@ class RobustServiceManager:
                 self._retry_with_fallback_registry()
             except ResourceExhaustionError:
                 self._cleanup_unused_services()
-        
+
         raise ServiceStartupError(f"Failed to start {service_name} after 3 attempts")
 ```
 
@@ -414,7 +414,7 @@ class RobustServiceManager:
 class CustomTemplate(ServiceTemplate):
     def __init__(self):
         super().__init__("my-custom-service")
-    
+
     def generate_config(self, context):
         return {
             "image": f"my-org/my-service:{context.version}",
@@ -430,8 +430,8 @@ class CachePlugin(ABC):
     @abstractmethod
     def should_cache(self, build_context: BuildContext) -> bool:
         pass
-    
-    @abstractmethod  
+
+    @abstractmethod
     def generate_cache_key(self, build_context: BuildContext) -> str:
         pass
 ```

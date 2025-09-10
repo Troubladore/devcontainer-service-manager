@@ -31,12 +31,12 @@ command_exists() {
 command_exists_validation() {
     # Try multiple methods to avoid cache issues
     local cmd="$1"
-    
+
     # Method 1: Try to run the command (most definitive test)
     if timeout 3 "$cmd" --version >/dev/null 2>&1 || timeout 3 "$cmd" --help >/dev/null 2>&1 || timeout 3 "$cmd" help >/dev/null 2>&1; then
         return 0
     fi
-    
+
     # Method 2: Check if executable file exists in PATH locations
     local path_dirs
     path_dirs=$(echo "$PATH" | tr ':' '\n' | sort -u)
@@ -48,7 +48,7 @@ command_exists_validation() {
             fi
         fi
     done <<< "$path_dirs"
-    
+
     # If we get here, the command is not functionally available
     return 1
 }
@@ -58,12 +58,12 @@ confirm() {
     if [ "$FORCE_MODE" = true ]; then
         return 0
     fi
-    
+
     local message="$1"
     echo -n "$message (y/N): "
     read -r response
     case "$response" in
-        [yY][eE][sS]|[yY]) 
+        [yY][eE][sS]|[yY])
             return 0
             ;;
         *)
@@ -290,14 +290,14 @@ uninstall_success=false
 if command_exists pipx; then
     echo "   Trying pipx uninstall..."
     pipx_uninstalled=false
-    
+
     # Try correct package name
     if pipx uninstall devcontainer-service-manager 2>/dev/null; then
         echo "   ✅ Uninstalled devcontainer-service-manager via pipx"
         pipx_uninstalled=true
         uninstall_success=true
     fi
-    
+
     # Try potential corrupted package names
     corrupted_package_names=("devcontainer-service-managerworkspace" "dcm-setupworkspace")
     for pkg_name in "${corrupted_package_names[@]}"; do
@@ -307,7 +307,7 @@ if command_exists pipx; then
             uninstall_success=true
         fi
     done
-    
+
     if [ "$pipx_uninstalled" = false ]; then
         echo "   ℹ️ No DCM packages found via pipx"
         # Force remove pipx venvs if they exist (both correct and corrupted names)
@@ -325,7 +325,7 @@ fi
 if command_exists uv; then
     echo "   Trying uv uninstall..."
     uv_uninstalled=false
-    
+
     # Try all possible package names
     all_package_names=("devcontainer-service-manager" "devcontainer-service-managerworkspace" "dcm-setupworkspace")
     for pkg_name in "${all_package_names[@]}"; do
@@ -335,7 +335,7 @@ if command_exists uv; then
             uninstall_success=true
         fi
     done
-    
+
     if [ "$uv_uninstalled" = false ]; then
         echo "   ℹ️ No DCM packages found via uv"
     fi
@@ -345,7 +345,7 @@ fi
 if command_exists pip; then
     echo "   Trying pip uninstall..."
     pip_uninstalled=false
-    
+
     for pkg_name in "${all_package_names[@]}"; do
         if pip uninstall "$pkg_name" -y 2>/dev/null; then
             echo "   ✅ Uninstalled $pkg_name via pip"
@@ -353,7 +353,7 @@ if command_exists pip; then
             uninstall_success=true
         fi
     done
-    
+
     if [ "$pip_uninstalled" = false ]; then
         echo "   ℹ️ No DCM packages found via system pip"
     fi
@@ -363,7 +363,7 @@ fi
 if command_exists pip3; then
     echo "   Trying pip3 uninstall..."
     pip3_uninstalled=false
-    
+
     for pkg_name in "${all_package_names[@]}"; do
         if pip3 uninstall "$pkg_name" -y 2>/dev/null; then
             echo "   ✅ Uninstalled $pkg_name via pip3"
@@ -371,7 +371,7 @@ if command_exists pip3; then
             uninstall_success=true
         fi
     done
-    
+
     if [ "$pip3_uninstalled" = false ]; then
         echo "   ℹ️ No DCM packages found via system pip3"
     fi
@@ -382,7 +382,7 @@ for python_cmd in python python3; do
     if command_exists "$python_cmd"; then
         echo "   Trying $python_cmd -m pip uninstall (user)..."
         user_uninstalled=false
-        
+
         for pkg_name in "${all_package_names[@]}"; do
             if "$python_cmd" -m pip uninstall "$pkg_name" -y --user 2>/dev/null; then
                 echo "   ✅ Uninstalled $pkg_name user installation via $python_cmd"
@@ -390,7 +390,7 @@ for python_cmd in python python3; do
                 uninstall_success=true
             fi
         done
-        
+
         if [ "$user_uninstalled" = false ]; then
             echo "   ℹ️ No DCM user packages found via $python_cmd"
         fi
@@ -417,7 +417,7 @@ if command_exists pyenv; then
                 rm -f "$shim_file" && echo "   ✅ Removed pyenv shim: $cmd" || echo "   ⚠️ Failed to remove shim: $cmd"
             fi
         done
-        
+
         # Rehash pyenv to update shims
         echo "   Rehashing pyenv to remove stale shims..."
         pyenv rehash 2>/dev/null && echo "   ✅ Pyenv rehashed successfully" || echo "   ⚠️ Pyenv rehash failed"
@@ -428,7 +428,7 @@ fi
 echo "   Checking common installation paths for any missed commands..."
 common_paths=(
     "$HOME/.local/bin"
-    "/usr/local/bin" 
+    "/usr/local/bin"
     "/usr/bin"
     "$HOME/.pyenv/versions/*/bin"
 )

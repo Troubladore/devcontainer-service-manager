@@ -6,16 +6,15 @@ Provides commands to manage the fingerprint-based caching system,
 including cache status, cleanup, and optimization features.
 """
 
-import click
-import json
 import logging
-from pathlib import Path
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
 
-from .fingerprint import CrossRepoCacheManager, DockerFingerprinter
+import click
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+
 from .cleanup import cleanup_by_project_name, get_resource_usage
+from .fingerprint import CrossRepoCacheManager
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -31,10 +30,10 @@ def cache():
 def status():
     """Show cache registry status and statistics."""
     cache_manager = CrossRepoCacheManager()
-    
+
     # Get registry status
     registry_status = cache_manager.get_registry_status()
-    
+
     # Create status panel
     if registry_status["running"]:
         status_text = f"✅ Registry running at {registry_status['registry_url']}"
@@ -46,19 +45,19 @@ def status():
         status_text = f"❌ Registry not running\nURL: {registry_status['registry_url']}"
         if registry_status.get("error"):
             status_text += f"\nError: {registry_status['error']}"
-    
+
     console.print(Panel(status_text, title="Docker Registry Status"))
-    
+
     # Show cached images if registry is running
     if registry_status["running"]:
         cached_images = cache_manager.list_cached_images()
-        
+
         if cached_images:
             table = Table(title="Cached Images")
             table.add_column("Type", style="cyan")
             table.add_column("Fingerprint", style="yellow")
             table.add_column("Full Name", style="green")
-            
+
             for image in cached_images:
                 # Extract type and fingerprint from tag
                 tag = image["tag"]
@@ -66,17 +65,13 @@ def status():
                     image_type, fingerprint = tag.split("-", 1)
                 else:
                     image_type, fingerprint = tag, "unknown"
-                
-                table.add_row(
-                    image_type,
-                    fingerprint,
-                    image["full_name"]
-                )
-            
+
+                table.add_row(image_type, fingerprint, image["full_name"])
+
             console.print(table)
         else:
             console.print("📭 No cached images found")
-    
+
     # Show Docker resource usage
     resource_usage = get_resource_usage()
     if resource_usage:
@@ -93,12 +88,12 @@ Volumes: {resource_usage.get('volumes', 'unknown')}
 def configure(project_name):
     """Configure caching for a specific project."""
     console.print(f"🔧 Configuring cache for project: {project_name}")
-    
+
     # Ensure registry is running
     cache_manager = CrossRepoCacheManager()
     if cache_manager.ensure_local_registry():
         console.print("✅ Local registry is ready")
-        
+
         # TODO: Add project-specific configuration
         # For now, just confirm setup
         console.print(f"✅ Project '{project_name}' configured for caching")
@@ -110,25 +105,27 @@ def configure(project_name):
 
 @cache.command()
 @click.option("--older-than", default="7d", help="Remove images older than (e.g., 7d, 24h)")
-@click.option("--dry-run", is_flag=True, help="Show what would be removed without actually removing")
+@click.option(
+    "--dry-run", is_flag=True, help="Show what would be removed without actually removing"
+)
 def clean(older_than, dry_run):
     """Clean up old cached images."""
     if dry_run:
         console.print(f"🔍 Dry run: Would remove cached images older than {older_than}")
     else:
         console.print(f"🧹 Cleaning cached images older than {older_than}")
-    
+
     cache_manager = CrossRepoCacheManager()
     cached_images = cache_manager.list_cached_images()
-    
+
     if not cached_images:
         console.print("📭 No cached images to clean")
         return
-    
+
     # TODO: Implement age-based filtering and cleanup
     # For now, just list what we found
     console.print(f"Found {len(cached_images)} cached images")
-    
+
     if dry_run:
         console.print("Use without --dry-run to perform actual cleanup")
     else:
@@ -140,33 +137,29 @@ def clean(older_than, dry_run):
 def optimize():
     """Pre-build common base images for faster builds."""
     console.print("🚀 Optimizing cache by pre-building common images...")
-    
+
     # Common base images for data engineering projects
-    common_images = [
-        "python:3.12-slim",
-        "apache/airflow:3.0.6",
-        "postgres:16",
-        "redis:7-alpine"
-    ]
-    
+    common_images = ["python:3.12-slim", "apache/airflow:3.0.6", "postgres:16", "redis:7-alpine"]
+
     for image in common_images:
         console.print(f"📥 Pulling {image}...")
         try:
             import subprocess
-            result = subprocess.run([
-                "docker", "pull", image
-            ], capture_output=True, text=True, timeout=300)
-            
+
+            result = subprocess.run(
+                ["docker", "pull", image], capture_output=True, text=True, timeout=300
+            )
+
             if result.returncode == 0:
                 console.print(f"✅ {image} ready")
             else:
                 console.print(f"⚠️ Failed to pull {image}: {result.stderr}")
-                
+
         except subprocess.TimeoutExpired:
             console.print(f"⏰ Timeout pulling {image}")
         except Exception as e:
             console.print(f"❌ Error pulling {image}: {e}")
-    
+
     console.print("✅ Cache optimization complete")
 
 
@@ -180,7 +173,7 @@ def registry():
 def start():
     """Start the local Docker registry."""
     cache_manager = CrossRepoCacheManager()
-    
+
     if cache_manager.ensure_local_registry():
         console.print("✅ Local Docker registry started")
         console.print(f"Registry URL: http://{cache_manager.CACHE_REGISTRY}")
@@ -194,22 +187,18 @@ def stop():
     """Stop the local Docker registry."""
     try:
         import subprocess
-        
+
         # Stop registry container
-        result = subprocess.run([
-            "docker", "stop", "registry"
-        ], capture_output=True, text=True)
-        
+        result = subprocess.run(["docker", "stop", "registry"], capture_output=True, text=True)
+
         if result.returncode == 0:
             console.print("✅ Registry stopped")
         else:
             console.print(f"⚠️ Registry may not have been running: {result.stderr}")
-        
+
         # Remove registry container
-        subprocess.run([
-            "docker", "rm", "registry"
-        ], capture_output=True, text=True)
-        
+        subprocess.run(["docker", "rm", "registry"], capture_output=True, text=True)
+
     except Exception as e:
         console.print(f"❌ Error stopping registry: {e}")
 
@@ -219,17 +208,15 @@ def logs():
     """Show registry logs."""
     try:
         import subprocess
-        
-        result = subprocess.run([
-            "docker", "logs", "registry"
-        ], capture_output=True, text=True)
-        
+
+        result = subprocess.run(["docker", "logs", "registry"], capture_output=True, text=True)
+
         if result.returncode == 0:
             console.print("📋 Registry logs:")
             console.print(result.stdout)
         else:
             console.print(f"❌ Failed to get registry logs: {result.stderr}")
-            
+
     except Exception as e:
         console.print(f"❌ Error getting registry logs: {e}")
 
@@ -240,9 +227,9 @@ def logs():
 def cleanup(project_name, timeout):
     """Clean up Docker resources for a specific project."""
     console.print(f"🧹 Cleaning up Docker resources for: {project_name}")
-    
+
     success = cleanup_by_project_name(project_name, timeout)
-    
+
     if success:
         console.print(f"✅ Successfully cleaned up project: {project_name}")
     else:

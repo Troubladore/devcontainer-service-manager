@@ -42,18 +42,18 @@ Jump directly to optimizations mentioned in `dcm-setup validate` output:
 
 **What it is**: Docker BuildKit is Docker's next-generation build engine that provides significant performance and feature improvements over the legacy builder.
 
-**Why it matters for DCM**: 
+**Why it matters for DCM**:
 - **149x faster builds** when combined with our caching system
-- **Parallel layer building** reduces build times dramatically  
+- **Parallel layer building** reduces build times dramatically
 - **Advanced caching** enables more efficient layer reuse
 - **Build secrets** support for secure dependency installation
 
-**When to use**: 
+**When to use**:
 - ✅ **Always recommended** - no downsides, only benefits
 - ✅ **Especially critical** for data engineering projects with heavy dependencies (Python ML libraries, R packages, etc.)
 - ✅ **Essential** when using DevContainer Service Manager's cross-repository caching
 
-**Implementation**: 
+**Implementation**:
 ```bash
 # 🚀 Easy Button (recommended - most durable)
 dcm-setup optimize --docker-buildkit
@@ -69,7 +69,7 @@ cat > ~/.docker/daemon.json << 'EOF'
 }
 EOF
 
-# Method 2: Shell profile (for CLI usage)  
+# Method 2: Shell profile (for CLI usage)
 echo 'export DOCKER_BUILDKIT=1' >> ~/.bashrc
 source ~/.bashrc
 
@@ -94,14 +94,14 @@ docker buildx version   # Should show buildx is available
 **Durability across restarts**:
 
 📊 **Docker Desktop Context**:
-✅ **WSL shutdown/restart**: Buildx builder and shell profile persist  
-✅ **Docker Desktop restart**: Buildx configuration is preserved  
-✅ **Windows reboot**: Shell profile survives, buildx builders recreated on first use  
+✅ **WSL shutdown/restart**: Buildx builder and shell profile persist
+✅ **Docker Desktop restart**: Buildx configuration is preserved
+✅ **Windows reboot**: Shell profile survives, buildx builders recreated on first use
 ✅ **New terminal sessions**: Shell profile ensures CLI consistency
 
 📊 **Native Docker Context**:
-✅ **Docker service restart**: Features from daemon.json are reloaded  
-✅ **System reboot**: Both daemon.json and shell profile survive  
+✅ **Docker service restart**: Features from daemon.json are reloaded
+✅ **System reboot**: Both daemon.json and shell profile survive
 ✅ **New terminal sessions**: Shell profile ensures CLI consistency
 
 **Docker Desktop Detection**: DCM automatically detects Docker Desktop by checking `docker context`, `docker info` output, and WSL2 environment indicators.
@@ -296,7 +296,7 @@ time find . -name "*.py"  # Should be much faster
 
 **Why configure it**:
 - **Memory management**: Prevent WSL2 from consuming all available RAM
-- **Swap optimization**: Disable slow swap for better performance  
+- **Swap optimization**: Disable slow swap for better performance
 - **Network performance**: Enable localhost forwarding for development servers
 - **CPU allocation**: Optimize processor usage for development workloads
 
@@ -336,7 +336,7 @@ wsl --shutdown
 
 **Resource recommendations**:
 - **16GB+ system**: 8GB for WSL2
-- **32GB+ system**: 16GB for WSL2  
+- **32GB+ system**: 16GB for WSL2
 - **CPU cores**: Half of your total cores
 
 ---
