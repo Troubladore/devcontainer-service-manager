@@ -431,7 +431,7 @@ class ServicePool:
 
             # Import fingerprint system
             try:
-                from devcontainer_services.caching.fingerprint import DockerBuildFingerprint
+                from devcontainer_services.caching.fingerprint import DockerFingerprinter
             except ImportError:
                 print(
                     "Warning: Caching system not available, "
@@ -451,8 +451,14 @@ class ServicePool:
 
             # Generate fingerprint for build caching
             try:
-                fingerprint = DockerBuildFingerprint.compute_fingerprint(
-                    context_path, dockerfile_path
+                fingerprinter = DockerFingerprinter(context_path)
+                # Use common dependency files for fingerprinting
+                dependency_files = []
+                for pattern in ["requirements*.txt", "pyproject.toml", "package.json"]:
+                    dependency_files.extend(context_path.glob(pattern))
+
+                fingerprint = fingerprinter.compute_fingerprint(
+                    dockerfile_path, dependency_files, {"service": service.name}
                 )
                 fingerprint_short = fingerprint[:12]
             except Exception as e:
