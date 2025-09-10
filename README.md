@@ -1,27 +1,18 @@
 # DevContainer Service Manager
 
-Ever waited 15 minutes for a Docker build, only to find another developer's services are blocking your ports? Ever had to manually coordinate PostgreSQL, Redis, Kafka, and Jupyter across multiple data engineering projects? **Current DevContainer workflows can't** - each project runs in isolation with slow builds and manual service management.
+A service orchestration tool for DevContainer-based development environments that addresses common challenges we've observed in multi-project data engineering workflows.
 
-**DevContainer Service Manager** solves this by providing intelligent service coordination and build caching that works across projects, branches, and team members with up to 149x faster build performance.
+## What It Does
 
-> **Part of the modern data engineering development ecosystem**: This is the **intelligent orchestration layer** that provides cross-project service management, advanced build caching, and workstation optimization. Built specifically for data teams working with complex multi-service environments.
+- **Service Coordination** - Manages shared services like PostgreSQL, Redis, and Kafka across projects, handling port conflicts and enabling service reuse
+- **Build Optimization** - Implements fingerprint-based Docker layer caching that can significantly reduce build times, particularly for teams working across multiple repositories
+- **Environment Setup** - Provides workstation optimization for WSL2 and development toolchain configuration
 
-## The Innovation
+## The Use Case
 
-For the first time, you can develop data engineering projects with:
-- **Intelligent Service Management** - Automatic port conflict resolution, cross-project service reuse, health monitoring with auto-recovery
-- **Advanced Build Caching** - Fingerprint-based Docker caching with cross-repository sharing (149x faster builds)
-- **Workstation Optimization** - WSL2 performance tuning, filesystem optimization, automated development environment setup
+In our experience, data engineering projects often require multiple long-running services. Teams frequently encounter port conflicts when switching between projects, duplicate resource usage, and rebuild cycles that can interrupt development flow.
 
-All using **unified namespace management** with statistical performance improvements and team-wide consistency.
-
-## Why This Matters
-
-**Development Velocity**: Transform 15-minute Docker builds into 6-second cache hits. Eliminate service startup conflicts that block development.
-
-**Team Productivity**: Share optimized services across projects and developers. No more "works on my machine" - standardized high-performance development environments.
-
-**Resource Efficiency**: Intelligent service reuse reduces memory usage and eliminates duplicate service instances across your development projects.
+This tool offers a coordination layer that can help with these challenges. Build performance improvements vary by project structure, but we've seen substantial reductions in build times when cache hits are effective.
 
 ## Quick Start
 
@@ -30,31 +21,20 @@ All using **unified namespace management** with statistical performance improvem
 pipx install devcontainer-service-manager[workstation]
 pipx ensurepath && source ~/.bashrc
 
-# One-time setup for optimal performance
+# One-time setup
 dcm-setup install --profile data-engineering
 dcm-setup validate
 
-# In your project: start development environment
+# In your project directory
 cd /path/to/your/project
 dcm up
 ```
 
-**Result**: Docker builds 10-149x faster, automatic service management, optimized development environment.
+## Documentation
 
-## What's Next?
+- [User Guide](docs/user-guide.md) - Core concepts and workflows
+- [Installation Guide](docs/installation.md) - Setup and configuration
+- [Optimization Guide](docs/optimization-guide.md) - Performance tuning for WSL2 and Docker
+- [System Architecture](docs/architecture.md) - Technical implementation details
 
-**🚀 Understand the Value**: [User Guide](docs/user-guide.md) - Core concepts, workflows, and performance benefits
-
-**⚡ Maximize Performance**: [Optimization Guide](docs/optimization-guide.md) - WSL2 tuning, Docker optimization, filesystem performance
-
-**🏗️ Explore the Architecture**: [System Architecture](docs/architecture.md) - How intelligent service management and caching work technically
-
-**🛠️ Implementation Details**: [Installation Guide](docs/installation.md) - Platform-specific setup and configuration options
-
-👉 **[Browse All Documentation](docs/index.md)**
-
----
-
-**Built for data engineering teams** who need **fast, reliable development environments** that **just work**.
-
----
+[Complete documentation index](docs/index.md)
