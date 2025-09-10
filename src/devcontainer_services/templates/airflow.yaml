@@ -1,4 +1,17 @@
+# Use either 'image' for pre-built images or 'build' for custom builds
 image: "docker.io/apache/airflow:{{version}}-python3.12"
+
+# Alternative: Custom build configuration
+# Uncomment and customize for custom Dockerfile builds:
+# build:
+#   dockerfile: "{{dockerfile|default('Dockerfile.airflow')}}"
+#   context: "{{build_context|default('.')}}"
+#   target: "{{build_target|default('development')}}"
+#   args:
+#     AIRFLOW_VERSION: "{{version}}"
+#     ENABLE_WINDOWS_AUTH: "{{enable_windows_auth|default('false')}}"
+#   cache_from: []
+
 container_name: "{{namespace}}_airflow_{{component|default('webserver')}}"
 
 environment:

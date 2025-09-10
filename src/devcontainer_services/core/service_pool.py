@@ -1,5 +1,6 @@
 """Service pool management with health monitoring and lifecycle control."""
 
+import hashlib
 import time
 from enum import Enum
 from pathlib import Path
@@ -25,6 +26,16 @@ class ServiceStatus(str, Enum):
     MISSING = "missing"
 
 
+class BuildConfig(BaseModel):
+    """Configuration for custom Docker builds."""
+
+    dockerfile: str  # Path to Dockerfile
+    context: str = "."  # Build context directory
+    target: str | None = None  # Multi-stage build target
+    args: dict[str, str] = {}  # Build arguments
+    cache_from: list[str] = []  # Cache sources
+
+
 class ServiceInfo(BaseModel):
     """Information about a managed service."""
 
@@ -48,7 +59,7 @@ class ServicePool:
         self.config_dir = config_dir or Path.home() / ".devcontainer-services"
         self.services: dict[str, ServiceInfo] = {}
         self.templates_dir = self.config_dir / "templates"
-        self.templates_dir.mkdir(exist_ok=True)
+        self.templates_dir.mkdir(parents=True, exist_ok=True)
 
     def load_services_config(self, config_path: Path) -> dict[str, Any]:
         """Load services configuration from YAML file."""
@@ -286,8 +297,20 @@ class ServicePool:
                 return False
             client = docker.from_env()
 
+            # Handle custom builds or use pre-built image
+            if "build" in template_config:
+                image_name = self._build_custom_image(service, template_config["build"])
+                if not image_name:
+                    return False
+            else:
+                image_name = template_config.get("image")
+
+            if not image_name:
+                print(f"No image or build configuration found for service {service.name}")
+                return False
+
             container_config = {
-                "image": template_config.get("image"),
+                "image": image_name,
                 "name": f"{self.namespace}_{service.name}",
                 "labels": {
                     "devcontainer-service-manager.namespace": self.namespace,
@@ -397,5 +420,142 @@ class ServicePool:
             # TODO: Implement service-specific health checks
             # For now, just check if container is running
             return True
+        except Exception:
+            return False
+
+    def _build_custom_image(self, service: ServiceInfo, build_config: dict[str, Any]) -> str | None:
+        """Build custom Docker image with fingerprint caching."""
+        try:
+            if docker is None:
+                return None
+
+            # Import fingerprint system
+            try:
+                from devcontainer_services.caching.fingerprint import DockerFingerprinter
+            except ImportError:
+                print(
+                    "Warning: Caching system not available, "
+                    "building without fingerprint optimization"
+                )
+                return self._docker_build_simple(service, build_config)
+
+            # Calculate build context paths
+            dockerfile_path = Path(build_config["dockerfile"])
+            context_path = Path(build_config.get("context", "."))
+
+            # Make paths absolute if they're relative
+            if not dockerfile_path.is_absolute():
+                dockerfile_path = context_path / dockerfile_path
+            if not context_path.is_absolute():
+                context_path = Path.cwd() / context_path
+
+            # Generate fingerprint for build caching
+            try:
+                fingerprinter = DockerFingerprinter(context_path)
+                # Use common dependency files for fingerprinting
+                dependency_files = []
+                for pattern in ["requirements*.txt", "pyproject.toml", "package.json"]:
+                    dependency_files.extend(context_path.glob(pattern))
+
+                fingerprint = fingerprinter.compute_fingerprint(
+                    dockerfile_path, dependency_files, {"service": service.name}
+                )
+                fingerprint_short = fingerprint[:12]
+            except Exception as e:
+                print(f"Warning: Could not compute fingerprint: {e}")
+                fingerprint_short = hashlib.md5(
+                    f"{service.name}-{time.time()}".encode()
+                ).hexdigest()[:12]
+
+            # Generate image name with fingerprint
+            image_name = f"dcsm-{self.namespace}-{service.name}:{fingerprint_short}"
+
+            # Check if cached image exists
+            client = docker.from_env()
+            try:
+                client.images.get(image_name)
+                print(f"Using cached image: {image_name}")
+                return image_name
+            except docker.errors.ImageNotFound:
+                pass
+
+            # Build new image
+            print(f"Building custom image: {image_name}")
+            return self._docker_build(service, build_config, image_name, context_path)
+
+        except Exception as e:
+            print(f"Failed to build custom image for service {service.name}: {e}")
+            return None
+
+    def _docker_build_simple(
+        self, service: ServiceInfo, build_config: dict[str, Any]
+    ) -> str | None:
+        """Simple Docker build without fingerprint caching."""
+        image_name = f"dcsm-{self.namespace}-{service.name}:latest"
+        context_path = Path(build_config.get("context", "."))
+        if not context_path.is_absolute():
+            context_path = Path.cwd() / context_path
+        return self._docker_build(service, build_config, image_name, context_path)
+
+    def _docker_build(
+        self,
+        service: ServiceInfo,
+        build_config: dict[str, Any],
+        image_name: str,
+        context_path: Path,
+    ) -> str | None:
+        """Perform the actual Docker build."""
+        try:
+            client = docker.from_env()
+
+            # Prepare build arguments
+            build_args = {
+                "dockerfile": build_config["dockerfile"],
+                "tag": image_name,
+                "path": str(context_path),
+                "rm": True,  # Remove intermediate containers
+                "forcerm": True,  # Always remove intermediate containers
+            }
+
+            # Add build target if specified
+            if build_config.get("target"):
+                build_args["target"] = build_config["target"]
+
+            # Add build arguments
+            if build_config.get("args"):
+                build_args["buildargs"] = build_config["args"]
+
+            # Add cache_from if specified
+            if build_config.get("cache_from"):
+                build_args["cache_from"] = build_config["cache_from"]
+
+            # Perform build
+            image, build_logs = client.images.build(**build_args)
+
+            # Print build logs for debugging
+            for log in build_logs:
+                if "stream" in log:
+                    print(log["stream"].strip())
+
+            # Label the image for lifecycle management
+            image.tag(image_name)
+            client.api.tag(image.id, image_name)
+
+            return image_name
+
+        except Exception as e:
+            print(f"Docker build failed: {e}")
+            return None
+
+    def _image_exists(self, image_name: str) -> bool:
+        """Check if Docker image exists locally."""
+        try:
+            if docker is None:
+                return False
+            client = docker.from_env()
+            client.images.get(image_name)
+            return True
+        except docker.errors.ImageNotFound:
+            return False
         except Exception:
             return False
